@@ -83,6 +83,7 @@ export function Board() {
     onBoardLostPointerCapture,
     activeNotePreview,
     creationPreview,
+    trashActive,
     gestureActive,
   } = useBoardGestures({
     boardSurfaceRef,
@@ -158,11 +159,16 @@ export function Board() {
             />
           ) : null}
 
-          <div className="trashZone" ref={trashRef} aria-hidden="true">
+          <div className="trashZone" ref={trashRef} data-active={trashActive}>
             <span className="trashZone__icon" aria-hidden="true">
               🗑
             </span>
-            <span className="trashZone__label">Trash</span>
+            <span className="trashZone__label">
+              {trashActive ? 'Release to delete' : 'Trash'}
+            </span>
+            <span className="trashZone__hint">
+              Release while the cursor is over the trash.
+            </span>
           </div>
         </div>
       </div>

@@ -221,7 +221,10 @@ export function useBoardGestures(
           break;
         }
         case 'moving': {
-          if (isPointerOverTrash(releaseBoardPoint, active.trashRect)) break;
+          if (isPointerOverTrash(releaseBoardPoint, active.trashRect)) {
+            paramsRef.current.onRemoveNote(active.noteId);
+            break;
+          }
           const rect = moveRect(
             active.initialRect,
             active.pointerOrigin,

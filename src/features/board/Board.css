@@ -96,18 +96,27 @@
   right: 1rem;
   bottom: 1rem;
   z-index: 10;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.25rem;
-  width: 6rem;
-  height: 6rem;
+  width: 8.5rem;
+  height: 7rem;
+  padding: 0.4rem 0.5rem;
   border: 2px dashed #b0271f;
   border-radius: 0.75rem;
   background: rgba(176, 39, 31, 0.06);
   color: #b0271f;
   pointer-events: none;
+}
+
+.trashZone[data-active='true'] {
+  border-style: solid;
+  border-width: 3px;
+  background: rgba(176, 39, 31, 0.16);
+  transform: scale(1.06);
 }
 
 .trashZone__icon {
@@ -118,6 +127,12 @@
 .trashZone__label {
   font-size: 0.8rem;
   font-weight: 600;
+}
+
+.trashZone__hint {
+  font-size: 0.65rem;
+  line-height: 1.1;
+  text-align: center;
 }
 
 .noteCard {
