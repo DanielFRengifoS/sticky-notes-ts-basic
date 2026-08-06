@@ -1,23 +1,24 @@
-import { useCallback, useReducer, useRef, useState, type PointerEvent } from 'react';
-import { notesReducer } from '../../domain/notesReducer';
-import type { BoardTool, NoteId, NoteRect, NotesState } from '../../domain/types';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useState,
+  type PointerEvent,
+} from 'react';
+import { initialNotesState, notesReducer } from '../../domain/notesReducer';
+import { normalizeRectToBoard } from '../../domain/geometry';
+import { loadNotes, saveNotes } from '../../infrastructure/notesStorage';
+import type { BoardPhase, BoardTool, NoteId, NoteRect, Size } from '../../domain/types';
+import { STORAGE_DEBOUNCE_MS } from '../../domain/types';
 import { NoteCard } from './NoteCard';
 import { useBoardGestures } from './useBoardGestures';
 import './Board.css';
 
-const DEV_INITIAL_STATE: NotesState = {
-  notes: [
-    { id: 'dev-note-1', rect: { x: 80, y: 80, width: 220, height: 160 }, text: 'First note' },
-    {
-      id: 'dev-note-2',
-      rect: { x: 360, y: 200, width: 220, height: 160 },
-      text: 'Second note (frontmost)',
-    },
-  ],
-};
-
 export function Board() {
-  const [state, dispatch] = useReducer(notesReducer, DEV_INITIAL_STATE);
+  const [state, dispatch] = useReducer(notesReducer, initialNotesState);
+  const [phase, setPhase] = useState<BoardPhase>('measuring');
   const [selectedId, setSelectedId] = useState<NoteId | null>(null);
   const [pendingFocusId, setPendingFocusId] = useState<NoteId | null>(null);
   const [tool, setTool] = useState<BoardTool>('select');
@@ -25,8 +26,36 @@ export function Board() {
   const boardSurfaceRef = useRef<HTMLDivElement>(null);
   const trashRef = useRef<HTMLDivElement>(null);
 
+  const hydratedRef = useRef(false);
+
   const notesRef = useRef(state.notes);
   notesRef.current = state.notes;
+
+  useLayoutEffect(() => {
+    if (hydratedRef.current) return;
+    const surface = boardSurfaceRef.current;
+    if (surface === null) return;
+    const rect = surface.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    hydratedRef.current = true;
+
+    const boardSize: Size = { width: rect.width, height: rect.height };
+    const stored = loadNotes(window.localStorage);
+    const normalized = stored.map((note) => ({
+      ...note,
+      rect: normalizeRectToBoard(note.rect, boardSize),
+    }));
+    dispatch({ type: 'notesHydrated', notes: normalized });
+    setPhase('ready');
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'ready') return;
+    const timer = window.setTimeout(() => {
+      saveNotes(window.localStorage, state.notes);
+    }, STORAGE_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [phase, state.notes]);
 
   const getNoteRect = useCallback(
     (noteId: NoteId): NoteRect | undefined =>
@@ -99,6 +128,7 @@ export function Board() {
 
   const handleSurfacePointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
+      if (phase !== 'ready') return;
       onBoardPointerDown(event);
       if (
         tool === 'select' &&
@@ -109,7 +139,7 @@ export function Board() {
         setSelectedId(null);
       }
     },
-    [onBoardPointerDown, tool],
+    [onBoardPointerDown, phase, tool],
   );
 
   return (
@@ -137,30 +167,32 @@ export function Board() {
           onPointerCancel={onBoardPointerCancel}
           onLostPointerCapture={onBoardLostPointerCapture}
         >
-          {state.notes.length === 0 ? (
+          {phase === 'ready' && state.notes.length === 0 ? (
             <p className="emptyState">
               Select &ldquo;New note&rdquo;, then drag on the board to create a note.
             </p>
           ) : null}
 
-          {state.notes.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              previewRect={
-                activeNotePreview?.noteId === note.id
-                  ? activeNotePreview.rect
-                  : undefined
-              }
-              selected={selectedId === note.id}
-              pendingFocus={pendingFocusId === note.id}
-              onTextChange={handleTextChange}
-              onNoteInteraction={handleNoteInteraction}
-              onHeaderPointerDown={onHeaderPointerDown}
-              onResizePointerDown={onResizePointerDown}
-              onFocusRequestConsumed={handleFocusRequestConsumed}
-            />
-          ))}
+          {phase === 'ready'
+            ? state.notes.map((note) => (
+                <NoteCard
+                  key={note.id}
+                  note={note}
+                  previewRect={
+                    activeNotePreview?.noteId === note.id
+                      ? activeNotePreview.rect
+                      : undefined
+                  }
+                  selected={selectedId === note.id}
+                  pendingFocus={pendingFocusId === note.id}
+                  onTextChange={handleTextChange}
+                  onNoteInteraction={handleNoteInteraction}
+                  onHeaderPointerDown={onHeaderPointerDown}
+                  onResizePointerDown={onResizePointerDown}
+                  onFocusRequestConsumed={handleFocusRequestConsumed}
+                />
+              ))
+            : null}
 
           {creationPreview ? (
             <div

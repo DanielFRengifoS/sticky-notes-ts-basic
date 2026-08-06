@@ -53,6 +53,7 @@ function NoteCardComponent({
       <textarea
         ref={editorRef}
         className="noteEditor"
+        aria-label="Note text"
         value={note.text}
         onChange={(event) => onTextChange(note.id, event.target.value)}
         onPointerDown={(event) => {
@@ -64,6 +65,7 @@ function NoteCardComponent({
 
       <div
         className="resizeHandle"
+        aria-hidden="true"
         onPointerDown={(event) => onResizePointerDown(note.id, event)}
       />
     </div>
