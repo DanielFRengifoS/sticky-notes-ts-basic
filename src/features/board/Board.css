@@ -1,0 +1,14 @@
+.board {
+  display: grid;
+  min-height: 0;
+  margin: 1.5rem;
+  place-items: center;
+  border: 1px dashed #aab2bd;
+  border-radius: 0.75rem;
+  background: #ffffff;
+}
+
+.board__placeholder {
+  margin: 0;
+  color: #6b7280;
+}

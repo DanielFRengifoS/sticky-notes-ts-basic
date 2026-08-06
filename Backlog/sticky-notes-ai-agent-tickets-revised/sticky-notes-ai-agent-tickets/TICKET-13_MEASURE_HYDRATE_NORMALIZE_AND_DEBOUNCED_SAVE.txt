@@ -1,0 +1,106 @@
+TICKET ID: SN-13
+TITLE: Integrate board measurement, one-time hydration normalization, and gated debounced persistence
+PRIORITY: MUST SHIP
+DEPENDS ON: SN-03, SN-04, SN-11, SN-12
+PRIMARY FILE:
+- src/features/board/Board.tsx
+
+GOAL
+Restore notes safely only after boardSurface has a valid size, normalize them once, and prevent the initial empty state from overwriting stored data.
+
+BOARD PHASE
+Board begins in:
+phase = "measuring"
+
+The UI may render the board shell while measuring, but persisted notes must not be rendered before normalization.
+
+HYDRATION SEQUENCE
+Implement this exact logical order:
+1. Render the empty boardSurface.
+2. Obtain a valid nonzero boardSurface measurement.
+3. Read local storage through loadNotes(window.localStorage).
+4. Parse/validate stored notes inside the infrastructure module.
+5. Normalize each valid note.rect with normalizeRectToBoard(rect, boardSize).
+6. Install normalized notes via notesHydrated.
+7. Ensure selectedId = null and pendingFocusId = null.
+8. Transition phase to "ready".
+
+MEASUREMENT DETAILS
+- Measure boardSurface.getBoundingClientRect(), never boardFrame.
+- Require width > 0 and height > 0.
+- Use a layout effect or a carefully controlled effect/ref callback that cannot hydrate from zero bounds.
+- Hydration should occur once for the mounted Board.
+- Account for React Strict Mode effect replay so valid stored data is not replaced or hydrated twice in a harmful way.
+- A ref guard is acceptable when clearly named and scoped.
+- Do not continuously rewrite note positions when the window resizes.
+
+RENDER GATE
+- Do not render persisted note rectangles before they are normalized.
+- Static board/chrome may render while measuring.
+- Interaction handlers should be disabled or return early until phase === "ready".
+
+WRITE GATE - CRITICAL
+The save effect MUST return immediately unless:
+phase === "ready"
+
+Add a concise English comment explaining:
+- Initial/Strict Mode effects could otherwise save the initial empty array over valid stored notes.
+- Hydration completion is the explicit write gate.
+
+DEBOUNCED SAVE
+- Use one ordinary debounce for all committed document changes.
+- Delay: STORAGE_DEBOUNCE_MS = 300.
+- Depend on committed notes and ready phase.
+- Use saveNotes(window.localStorage, notes).
+- Clear the pending timer in effect cleanup.
+- The textarea still updates React on every keystroke; only storage is delayed.
+- Do not implement pagehide flushing.
+- Do not separately debounce geometry and text.
+- Preview state must not trigger storage writes because it is not reducer state.
+
+STRICT MODE SAFETY
+The implementation must guarantee:
+- No empty write before hydration.
+- Hydration installing notes does not race with an earlier timer.
+- Effect cleanup clears stale timers.
+- A storage exception does not break Board.
+
+NEW/CHANGED NOTE NORMALIZATION
+- Hydrated notes are normalized once here.
+- New/moved/resized notes are already clamped by geometry functions before reducer commit.
+- Do not add a continuous normalization effect over every board resize.
+
+TESTABILITY
+Structure phase/write-gate logic so it can be unit-tested without a full browser where practical. At minimum, expose no hidden automatic write inside reducer or storage parsing.
+
+OUT OF SCOPE
+- Cross-tab synchronization.
+- Storage event listeners.
+- pagehide/beforeunload flush.
+- Cloud persistence.
+- Version migrations.
+- Continuous resize normalization.
+
+ACCEPTANCE CRITERIA
+- Stored notes restore after reload.
+- Restored notes are inside the current measured board.
+- No note renders from raw persisted geometry before normalization.
+- No storage write happens while phase is "measuring".
+- Saving begins only after phase becomes "ready".
+- Writes are debounced by 300 ms.
+- Preview pointer movement does not write storage.
+- Storage failure does not crash the app.
+- Restored notes do not autofocus.
+- React Strict Mode does not erase valid data on startup.
+
+MANUAL VERIFICATION
+1. Create/edit/move/resize notes and wait >300 ms.
+2. Reload and confirm geometry/text/order restore.
+3. Seed invalid JSON and reload; app opens empty.
+4. Seed a valid note partly outside board; reload and confirm it is normalized.
+5. Instrument or spy on setItem and confirm no write before hydration ready.
+6. Type rapidly and confirm UI is immediate while writes are delayed.
+7. Resize browser window; confirm the app remains usable without continuously rewriting storage.
+
+DONE WHEN
+Persistence is safe, versioned, measured, normalized, debounced, and explicitly gated by hydration completion.

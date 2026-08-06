@@ -1,0 +1,9 @@
+SOURCE BASIS
+
+These tickets were derived from:
+- Sticky Notes - Final Frozen Implementation Plan (21 pages)
+- Hiring - Front-end developer: Sticky notes TS (2 pages)
+
+The final frozen plan is treated as the implementation source of truth. The employer brief supplies the assessment constraints: 3-4 hour target, TypeScript + React without stock components, desktop minimum 1024 x 768, current Chrome/Firefox/Edge support, four primary interactions, optional text/fronting/local-storage/colors/REST features, and a 2-3 paragraph English architecture description.
+
+No external requirements were added. The optional mocked REST API and different note colors are intentionally excluded from must-ship work according to the frozen plan.

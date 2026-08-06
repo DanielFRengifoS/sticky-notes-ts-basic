@@ -1,0 +1,144 @@
+TICKET ID: SN-00
+TITLE: Enforce the frozen implementation contract and execution order
+PRIORITY: BLOCKING / GLOBAL
+DEPENDS ON: None
+ESTIMATED POSITION: Read before all implementation tickets
+
+GOAL
+Create and obey a single execution contract for the entire assessment. This ticket is not optional documentation: every later ticket must be implemented within these boundaries.
+
+ASSESSMENT OUTCOME
+Build a polished desktop React + TypeScript sticky-notes application that demonstrates:
+- Reliable Pointer Events interactions.
+- Clear state ownership.
+- Strong, understandable static typing.
+- Safe local-storage hydration.
+- One consistent board coordinate system.
+- Focused tests.
+- Sensible scope control.
+- A codebase that is easy to review and explain in an interview.
+
+MUST-SHIP FUNCTIONAL SCOPE
+The final application MUST support all of the following:
+1. Create a note by dragging on the empty board.
+2. Move a note by dragging the draggable background of its header.
+3. Resize a note from a bottom-right resize handle.
+4. Delete a note by releasing the active pointer while the cursor is strictly inside a predefined trash zone.
+5. Edit note text.
+6. Bring an interacted note to the front.
+7. Restore and save notes using versioned local storage.
+8. Cancel creation mode or an active gesture with Escape.
+
+MUST-SHIP ENGINEERING SCOPE
+The final application MUST also include:
+- React and TypeScript.
+- No stock sticky-note, drag-and-drop, or resize components.
+- Pointer capture.
+- Correct gesture cancellation.
+- Final committed geometry calculated from the pointerup release event.
+- Strict TypeScript configuration.
+- Pure geometry functions.
+- A focused pure reducer for committed note state.
+- Memoized note rendering.
+- Focused unit tests.
+- A successful production build.
+- A concise README containing the requested 2-3 paragraph architecture description.
+- Desktop support at a minimum resolution of 1024 x 768.
+- Compatibility verification in current Chrome, Firefox, and Edge where available.
+
+FROZEN SOURCE ARCHITECTURE
+Use this structure unless a genuinely necessary implementation detail requires a very small deviation:
+
+src/
+|-- domain/
+|   |-- geometry.ts
+|   |-- geometry.test.ts
+|   |-- notesReducer.ts
+|   |-- notesReducer.test.ts
+|   `-- types.ts
+|-- infrastructure/
+|   |-- notesStorage.ts
+|   `-- notesStorage.test.ts
+|-- features/
+|   `-- board/
+|       |-- Board.tsx
+|       |-- Board.css
+|       |-- NoteCard.tsx
+|       `-- useBoardGestures.ts
+|-- App.tsx
+`-- main.tsx
+
+STATE OWNERSHIP CONTRACT
+- domain/types.ts owns note, geometry, gesture, UI-state types, and shared constants.
+- domain/geometry.ts owns pure coordinate and rectangle calculations.
+- domain/notesReducer.ts owns committed note-state transitions only.
+- infrastructure/notesStorage.ts owns versioned parsing, validation, safe reads, and safe writes.
+- useBoardGestures.ts owns the active pointer lifecycle, pointer capture, animation-frame preview scheduling, commit, cancellation, and trash activation.
+- Board.tsx owns the reducer, hydration phase, active tool, selection, pending focus, persistence effect, and board composition.
+- NoteCard.tsx owns presentation and local event boundaries for one note.
+
+DO NOT ADD
+Do not add context providers, repositories, service layers, generalized drag-and-drop frameworks, extra state libraries, or generic hooks unless they demonstrably reduce implementation complexity. Do not build the mocked REST API.
+
+FIRST THINGS TO CUT
+Do not implement these unless every must-ship behavior is already complete, stable, tested, and built:
+- pagehide persistence flushing.
+- Playwright infrastructure.
+- Delete-key behavior.
+- Different note colors.
+- Continuous board-resize normalization.
+- Extensive persistence-validator edge cases.
+- Decorative animations unrelated to interaction feedback.
+- Any abstraction that is not already simplifying the implementation.
+
+TIME-BOX CHECKPOINT
+At approximately 2 hours 30 minutes of implementation time, all four core interactions MUST already work:
+- Create.
+- Move.
+- Resize.
+- Delete.
+If any are unstable, stop adding scope and stabilize them before persistence, tests, or polish.
+
+INTERACTION ENGINE OWNERSHIP
+- Execute SN-06, SN-07, SN-08, SN-09, and SN-10 sequentially in one working context.
+- Keep one owner for useBoardGestures.ts and its Board-facing API until create, move, resize, and delete all work together.
+- Do not split those interaction tickets across agents or branches; coordination overhead and overlapping terminal logic are higher risk than the apparent parallelism benefit.
+- Only SN-03 geometry, SN-04 reducer, and SN-12 storage are considered safe parallel work after their dependencies are satisfied.
+
+GLOBAL INTERACTION RULES
+- Start a gesture only when event.isPrimary is true and event.button is 0.
+- Use Pointer Events only: pointerdown, pointermove, pointerup, pointercancel, lostpointercapture.
+- Do not install document-level mouse listeners.
+- The element that starts a gesture captures the pointer.
+- Raw pointer data belongs in a mutable ref.
+- React preview state updates at most once per animation frame.
+- pointerup calculates final geometry directly from the release event.
+- Successful commits and cancellations are separate terminal paths.
+- pointercancel, Escape, capture loss, and unmount must never accidentally commit geometry.
+
+GLOBAL COORDINATE RULE
+The borderless, padding-free boardSurface is the only application coordinate system. All persisted rectangles, pointer coordinates, previews, trash bounds, CSS absolute positions, and clamping use boardSurface.getBoundingClientRect(). Never use the decorated boardFrame for geometry.
+
+GLOBAL QUALITY RULES
+- Avoid any.
+- Avoid unvalidated type assertions.
+- Avoid one-use generic abstractions.
+- Comments must be in English and only explain non-obvious behavior.
+- Keep the textarea fully controlled.
+- Preserve unaffected note object references.
+- Return existing state references for reducer no-ops.
+- Ensure no storage write occurs before hydration completes.
+- Do not claim browser or OS verification that was not actually performed.
+
+REQUIRED FINAL COMMAND
+Configure and pass:
+npm run check
+
+The check script MUST execute:
+npm run typecheck && npm run lint && npm run test -- --run && npm run build
+
+ACCEPTANCE CRITERIA
+- Every implementation ticket explicitly follows this contract.
+- No cut feature delays or destabilizes must-ship scope.
+- The final code structure and README architecture claims match the implementation.
+- All must-ship functionality is present in the ticket set; no essential behavior is left as an unstated assumption.

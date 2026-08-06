@@ -1,0 +1,162 @@
+TICKET ID: SN-06
+TITLE: Build the pointer gesture lifecycle, frame-limited previews, commit path, and cancellation path
+PRIORITY: BLOCKING
+DEPENDS ON: SN-02, SN-03, SN-05
+PRIMARY FILE:
+- src/features/board/useBoardGestures.ts
+INTEGRATION FILE:
+- src/features/board/Board.tsx
+
+GOAL
+Implement the technically dense, board-specific interaction engine once so move, resize, create, and delete tickets can plug into a correct lifecycle.
+
+HOOK OWNERSHIP
+useBoardGestures.ts owns:
+- Mutable active Gesture ref.
+- Pointer capture lifecycle.
+- Raw pointer movement.
+- At-most-one requestAnimationFrame scheduling.
+- Rendered preview state.
+- Trash activation state.
+- Commit behavior.
+- Cancellation behavior.
+- Unmount cleanup.
+
+This hook is specific to the sticky-note board. Do not generalize it into a drag-and-drop framework.
+
+EXPECTED INPUTS
+Design a typed hook API that receives only stable dependencies such as:
+- boardSurface ref or a typed getter for it.
+- trash-zone ref or a typed way to measure it.
+- current BoardTool.
+- stable commit callbacks: add, commit rect, remove.
+- optional callbacks for gesture-state changes.
+Do not pass the entire reducer state if the hook only needs a note and its initial rectangle at gesture start.
+
+EXPECTED OUTPUTS
+Return stable handlers and render state needed by Board/NoteCard, such as:
+- onBoardPointerDown
+- onHeaderPointerDown
+- onResizePointerDown
+- active note preview
+- creation preview
+- trash active
+- gesture active
+- cancelActiveGesture
+Exact names may vary, but responsibilities must be explicit.
+
+POINTER START GATE
+Every gesture start handler must return unless:
+event.isPrimary === true && event.button === 0
+
+Do not start a second gesture while another gesture is active.
+
+POINTER CAPTURE
+- The currentTarget that begins the gesture must call setPointerCapture(event.pointerId).
+- Use currentTarget, not target.
+- Store the capturing HTMLElement in a dedicated captureTargetRef separate from the serializable Gesture union. This ref is required to check/release capture during terminal cleanup.
+- Put the shared pointermove, pointerup, pointercancel, and lostpointercapture handlers on boardSurface; captured events retarget to the capturing descendant and bubble through boardSurface. A similarly centralized strictly typed wiring is acceptable, but do not duplicate lifecycle logic across notes.
+- Do not add document-level listeners.
+- Before releasing, verify captureTargetRef.current?.hasPointerCapture(pointerId) and then call releasePointerCapture(pointerId).
+- Clear captureTargetRef on every terminal path.
+- Correctly type React.PointerEvent and HTMLElement refs.
+
+RAW MOVEMENT / FRAME LIMITING
+Use three layers:
+1. Every pointermove updates gestureRef.current.latestPointer after client-to-board conversion.
+2. Schedule at most one requestAnimationFrame callback.
+3. The callback reads the latest gesture ref and computes the current preview/trash state.
+
+Do not call React preview state setters for every raw pointermove.
+
+Add a concise English comment explaining why raw gestures live in a ref:
+- Pointer streams can be faster than React rendering.
+- The ref retains the latest pointer data without forcing a render per event.
+
+FAST-RELEASE SAFETY
+On pointerup:
+- Do not commit the last rendered preview.
+- Convert the release event's client point to board coordinates.
+- Recalculate final geometry directly from the copied active gesture and release point.
+Add a concise English comment explaining that the rendered preview may be one animation frame behind.
+
+COMMIT TERMINAL OPERATION
+Provide behavior equivalent to:
+function commitActiveGesture(
+  pointerId: number,
+  releasePoint: ClientPoint
+): void;
+
+Required sequence:
+1. Ignore if the pointer ID does not match the active gesture.
+2. Convert releasePoint using the active gesture's captured boardBounds.
+3. Copy the active gesture into a local variable.
+4. Set gestureRef.current to idle.
+5. Cancel any pending animation frame.
+6. Calculate final geometry from the release point.
+7. Dispatch/call the relevant committed-state operation.
+8. Clear rendered preview and trash-active state.
+9. Release pointer capture if still held.
+
+Clearing the gesture before releasing capture is mandatory so a resulting lostpointercapture event is a no-op. Add a concise comment explaining this ordering.
+
+CANCEL TERMINAL OPERATION
+Provide behavior equivalent to:
+function cancelActiveGesture(
+  reason:
+    | "pointer-cancelled"
+    | "capture-lost"
+    | "escape"
+    | "unmount"
+): void;
+
+For pointercancel, active lostpointercapture, and Escape:
+- Set gesture ref to idle.
+- Cancel pending animation frame.
+- Clear preview state.
+- Clear trash-active state.
+- Never commit geometry.
+- Release capture where appropriate and safe.
+
+For unmount:
+- Set the ref to idle.
+- Cancel the pending frame.
+- Do not call React state setters during cleanup.
+
+LOST CAPTURE RULE
+- If lostpointercapture fires while the matching gesture is still active, cancel it with reason "capture-lost".
+- If commit already cleared the gesture, lostpointercapture does nothing.
+
+BOARD BOUNDS RULE
+- Measure boardSurface.getBoundingClientRect() when a gesture begins.
+- Snapshot those bounds into the Gesture.
+- Use those same bounds for the gesture's coordinate conversion and final release.
+- Do not read boardFrame bounds.
+- Do not continuously remeasure during the gesture.
+
+PREVIEW CLEARING
+All terminal paths must leave:
+- active note preview = null.
+- creation preview = null.
+- trash active = false.
+- gesture active = false.
+- no scheduled animation frame.
+- captureTargetRef = null after any required capture release.
+
+OUT OF SCOPE
+- The exact create/move/resize formulas, which come from geometry.ts and are wired in SN-07 through SN-10.
+- Selection/focus semantics beyond callbacks required to start a gesture.
+- Persistence.
+
+ACCEPTANCE CRITERIA
+- There is at most one scheduled animation frame.
+- pointerup uses release-event coordinates, not stale preview state.
+- pointercancel, lost capture, Escape, and unmount cannot commit.
+- Commit clears the gesture before releasing capture.
+- No document-level mouse/pointer listeners exist.
+- The hook is board-specific and strictly typed.
+- A pointer leaving the original note does not stop a captured gesture.
+- All cleanup paths are idempotent.
+
+DONE WHEN
+The board has one reliable pointer lifecycle that later tickets can use without reimplementing capture, frame scheduling, commit, or cancellation.

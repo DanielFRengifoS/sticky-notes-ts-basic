@@ -1,0 +1,144 @@
+TICKET ID: SN-02
+TITLE: Define the domain, gesture, and board UI types plus frozen constants
+PRIORITY: BLOCKING
+DEPENDS ON: SN-01
+PRIMARY FILE:
+- src/domain/types.ts
+
+GOAL
+Create the complete shared type model and constants required by geometry, reducer, storage, board rendering, and gesture handling.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. DOMAIN TYPES
+Define and export the following shapes using clear interfaces/type aliases:
+
+type NoteId = string;
+
+interface ClientPoint {
+  clientX: number;
+  clientY: number;
+}
+
+interface BoardPoint {
+  x: number;
+  y: number;
+}
+
+interface Size {
+  width: number;
+  height: number;
+}
+
+interface NoteRect extends BoardPoint, Size {}
+
+interface BoardBounds {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+interface Note {
+  id: NoteId;
+  rect: NoteRect;
+  text: string;
+}
+
+interface NotesState {
+  notes: Note[];
+}
+
+2. STACKING CONTRACT
+Document through a short useful comment or naming, not a long essay:
+- notes array order is stacking order.
+- The final item is frontmost.
+Do not introduce a second z-index state model.
+
+3. APPLICATION UI TYPES
+Define:
+type BoardPhase = "measuring" | "ready";
+type BoardTool = "select" | "create";
+
+interface BoardUiState {
+  phase: BoardPhase;
+  tool: BoardTool;
+  selectedId: NoteId | null;
+  pendingFocusId: NoteId | null;
+}
+
+Board.tsx may choose separate React state variables instead of storing one BoardUiState object, but this type must remain available if useful. Do not put committed notes inside BoardUiState.
+
+4. GESTURE UNION
+Define and export:
+
+type Gesture =
+  | { type: "idle" }
+  | {
+      type: "creating";
+      pointerId: number;
+      pointerOrigin: BoardPoint;
+      latestPointer: BoardPoint;
+      boardBounds: BoardBounds;
+    }
+  | {
+      type: "moving";
+      pointerId: number;
+      noteId: NoteId;
+      pointerOrigin: BoardPoint;
+      latestPointer: BoardPoint;
+      initialRect: NoteRect;
+      boardBounds: BoardBounds;
+      trashRect: NoteRect;
+    }
+  | {
+      type: "resizing";
+      pointerId: number;
+      noteId: NoteId;
+      pointerOrigin: BoardPoint;
+      latestPointer: BoardPoint;
+      initialRect: NoteRect;
+      boardBounds: BoardBounds;
+    };
+
+The active tool and active gesture are different concepts. Do not merge "create tool armed" into the Gesture union.
+
+5. PREVIEW TYPES
+Define the smallest explicit preview types required by the hook and Board:
+- Creation preview: a NoteRect or null.
+- Active note preview: noteId + rect, or null.
+- Trash active state: boolean.
+It is acceptable to model these as one discriminated union or a compact interface, provided only the active note receives changing preview geometry.
+
+6. CONSTANTS
+Define and export exactly these frozen values:
+- MIN_NOTE_WIDTH = 160
+- MIN_NOTE_HEIGHT = 120
+- MIN_CREATE_DRAG_DISTANCE = 6
+- MAX_NOTE_TEXT_LENGTH = 5000
+- STORAGE_KEY = "sticky-notes-ts:document"
+- STORAGE_DEBOUNCE_MS = 300
+
+7. TYPE QUALITY
+- No any.
+- No branded coordinate types.
+- No deep-readonly utility framework.
+- No generic geometry abstraction.
+- Avoid exporting types that are not used by the frozen design.
+- Use exact optional property semantics correctly; prefer explicit unions with undefined only where required.
+
+OUT OF SCOPE
+- Geometry implementation.
+- Reducer actions.
+- React state.
+- Storage parsing.
+
+ACCEPTANCE CRITERIA
+- All later modules can import their shared types from domain/types.ts.
+- Gesture variants contain the exact data needed to recompute final geometry without reading rendered preview state.
+- No type duplicates the role of notes array order.
+- Constants have the exact values specified above.
+- TypeScript strict mode passes.
+
+DONE WHEN
+The project has one coherent domain vocabulary that later tickets can use without redefining note, rectangle, coordinate, gesture, or phase concepts.

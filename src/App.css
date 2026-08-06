@@ -1,0 +1,21 @@
+.app {
+  display: grid;
+  min-height: 100vh;
+  grid-template-rows: auto 1fr;
+}
+
+.app__header {
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #d7dce2;
+  background: #ffffff;
+}
+
+.app__header h1,
+.app__header p {
+  margin: 0;
+}
+
+.app__header p {
+  margin-top: 0.25rem;
+  color: #5b6470;
+}

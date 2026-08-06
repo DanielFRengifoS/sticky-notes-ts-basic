@@ -1,0 +1,135 @@
+TICKET ID: SN-01
+TITLE: Bootstrap the strict React + TypeScript project and establish the board coordinate surface
+PRIORITY: BLOCKING
+DEPENDS ON: SN-00
+PRIMARY FILES:
+- package.json
+- tsconfig*.json
+- eslint configuration
+- vite configuration
+- src/main.tsx
+- src/App.tsx
+- src/features/board/Board.tsx
+- src/features/board/Board.css
+- README.md (command skeleton only at this stage)
+
+GOAL
+Create a buildable Vite React + TypeScript application with strict compiler settings, lint/test/build commands, and the two-layer board shell required for all later geometry.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. PROJECT SETUP
+- Use Vite with React and TypeScript.
+- Keep dependencies minimal.
+- Add a unit-test runner suitable for TypeScript and pure functions, preferably Vitest because it integrates directly with Vite.
+- Add ESLint for React and TypeScript.
+- Do not add a drag-and-drop library, resize library, state management library, CSS framework, or component library.
+
+2. TYPESCRIPT SETTINGS
+Enable at minimum:
+{
+  "strict": true,
+  "noUncheckedIndexedAccess": true,
+  "exactOptionalPropertyTypes": true,
+  "useUnknownInCatchVariables": true
+}
+
+The application must compile without any and without suppressing errors through broad assertions.
+
+3. PACKAGE SCRIPTS
+Provide at least:
+- dev
+- build
+- preview
+- typecheck
+- lint
+- test
+- check
+
+The check script MUST be functionally equivalent to:
+npm run typecheck && npm run lint && npm run test -- --run && npm run build
+
+4. APPLICATION SHELL
+Create App.tsx as a thin page-level composition that renders the sticky-notes board and any required title/toolbar framing. Keep domain and interaction logic out of App.tsx.
+
+5. TWO-LAYER BOARD STRUCTURE
+Board.tsx must render:
+- boardFrame: decoration and page framing only.
+- boardSurface: the only coordinate system used by the application.
+
+Required conceptual DOM:
+boardFrame
+`-- boardSurface
+    |-- notes
+    |-- creation preview
+    |-- empty-state text
+    `-- trash zone
+
+The boardSurface CSS MUST include the functional equivalent of:
+position: relative;
+width: 100%;
+height: 100%;
+padding: 0;
+border: 0;
+overflow: hidden;
+
+The boardFrame may own:
+- Border.
+- Shadow.
+- Background framing.
+- Outer spacing.
+
+The boardFrame MUST NOT be used for pointer-to-board conversion or note geometry.
+
+6. DESKTOP LAYOUT
+- Ensure the toolbar leaves enough vertical room for the board.
+- Prevent horizontal page scrolling at exactly 1024 x 768.
+- Give the board a stable, nonzero usable height.
+- Prefer a responsive layout that fills the available viewport while honoring the minimum supported resolution.
+- Do not implement continuous board-resize normalization.
+
+7. INITIAL STATIC UI
+Render enough static UI to verify:
+- A toolbar with a button whose default label is "New note".
+- An empty board surface.
+- A visible predefined trash zone inside the board.
+- Empty-state guidance.
+No interaction behavior is required yet.
+
+8. README SKELETON
+Add only the command headings and placeholders needed later:
+- npm install
+- npm run dev
+- npm run check
+- npm run build
+Do not write final architectural claims before the implementation exists.
+
+OUT OF SCOPE
+- Domain types and geometry.
+- Notes reducer.
+- Pointer interactions.
+- Persistence.
+- Final visual polish.
+- Browser automation.
+
+ACCEPTANCE CRITERIA
+- npm install succeeds.
+- npm run typecheck succeeds for the scaffold.
+- npm run lint succeeds for the scaffold.
+- Do not require npm run test -- --run to pass during SN-01 because no real test file exists yet.
+- Do not enable Vitest passWithNoTests or add a placeholder test merely to make an empty suite pass.
+- SN-03 must add the first real geometry test; from that ticket onward npm run test -- --run must succeed normally and must fail if zero tests are discovered.
+- npm run build succeeds.
+- The app renders a boardFrame containing a borderless, padding-free boardSurface.
+- The page has no horizontal scrollbar at 1024 x 768.
+- No geometry code measures boardFrame.
+- No prohibited third-party interaction component is installed.
+
+MANUAL VERIFICATION
+- Open the app at 1024 x 768.
+- Inspect boardSurface and confirm it has a nonzero width and height.
+- Confirm the trash zone is rendered inside boardSurface.
+- Confirm toolbar and board are both usable without horizontal scrolling.
+
+DONE WHEN
+The project is buildable and the boardSurface is ready to become the sole coordinate system for every subsequent ticket.

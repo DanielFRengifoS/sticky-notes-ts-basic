@@ -1,0 +1,101 @@
+TICKET ID: SN-15
+TITLE: Complete the focused high-risk unit test suite within a fixed test budget
+PRIORITY: MUST SHIP
+DEPENDS ON: SN-03, SN-04, SN-12, SN-13
+PRIMARY FILES:
+- src/domain/geometry.test.ts
+- src/domain/notesReducer.test.ts
+- src/infrastructure/notesStorage.test.ts
+- Optional small Board/persistence-gate test file only if needed
+
+GOAL
+Freeze a final suite of approximately 8-12 highly meaningful tests concentrated on geometry risk, reducer reference behavior, storage safety, and the pre-hydration write gate. This is a test-budget ticket, not a checklist requiring one test per bullet.
+
+TEST-BUDGET CONTRACT
+- Treat every behavior listed below as a priority pool, not as a mandatory individual test case.
+- Keep the final suite around 8-12 total test() / it() blocks across all files.
+- Parameterized/table-driven cases may cover multiple directions, edges, or failure variants in one test.
+- Combining closely related assertions is encouraged when the test remains readable and has one coherent behavioral purpose.
+- Do not exceed the budget merely because a bullet contains multiple examples.
+- Do not leave Vitest configured to pass with zero tests.
+
+TEST STRATEGY
+- Prefer pure unit tests.
+- Use deterministic fixtures with explicit board sizes and rectangles.
+- Test reference identity with toBe, not only deep equality.
+- Avoid large component snapshots.
+- Avoid testing implementation-private animation-frame mechanics unless a small focused test is straightforward.
+- Ensure npm run test -- --run is non-interactive and exits.
+- Retain or refine the real bootstrap geometry test added in SN-03; do not count a placeholder because placeholders are forbidden.
+
+MUST-HAVE BEHAVIOR POOL
+Cover all of the following behaviors within the 8-12-test budget. They are coverage requirements, not one-test-per-line requirements.
+
+GEOMETRY
+1. Creation in normal and reverse directions.
+   - Prefer one parameterized test covering down-right plus at least one reverse direction.
+2. Short-drag rejection and minimum-size behavior near a board edge.
+   - These may be one or two tests depending on clarity.
+3. Movement clamping.
+   - One table-driven test may cover top-left and bottom-right overflow.
+4. Resize clamping.
+   - One table-driven test may cover minimum size and board maximum.
+5. Pointer-based trash detection including strict edge behavior.
+   - The same test may assert inside is true and every exact edge is false.
+
+REDUCER
+6. Frontmost and missing-ID identity no-ops.
+   - One parameterized or grouped test may prove both return the exact existing state object.
+7. A targeted text or geometry update changes only the target and preserves unaffected note object references.
+
+PERSISTENCE AND HYDRATION
+8. Invalid JSON returns an empty note collection.
+9. Malformed individual entries are skipped and storage read/write failures do not crash.
+   - These failure variants may be grouped or parameterized while keeping assertions explicit.
+10. Saving is blocked before hydration reaches phase === "ready".
+
+OPTIONAL COVERAGE POOL
+Only add these when the must-have pool is already covered, the suite remains at or near 12 tests, and the extra test protects actual implementation risk:
+- Add/remove reducer happy path.
+- Duplicate ID keeps the first valid note.
+- Oversized text is truncated.
+- Board smaller than configured minimum note dimensions.
+- Geometry commit action happy path.
+These are not required as separate tests.
+
+HYDRATION WRITE-GATE TEST
+Use one focused proof that pre-hydration writes are impossible. Acceptable approaches:
+- Test a small pure predicate/helper that is actually used by the persistence effect.
+- Render Board with mocked Storage and controlled measurement.
+- Use a minimal DOM integration test.
+Do not weaken the production design merely to make this test easy.
+
+DO NOT OVERBUILD
+- No exhaustive JSON schema matrix.
+- No full browser matrix in unit tests.
+- No page object model.
+- No visual regression.
+- No testing React internals.
+- No giant snapshots.
+- No separate test for every drag direction or every board edge when a parameterized test communicates the behavior better.
+
+TEST QUALITY
+Each test name should communicate behavior, for example:
+- "creates normalized rectangles in forward and reverse drag directions"
+- "rejects short drags and applies minimum size at the board edge"
+- "treats points on trash edges as outside"
+- "preserves state identity for frontmost and missing-note no-ops"
+- "does not write before hydration reaches ready"
+
+ACCEPTANCE CRITERIA
+- The final suite contains approximately 8-12 focused test blocks.
+- Every must-have behavior pool item is covered, possibly through parameterized or grouped cases.
+- No bullet in this ticket is interpreted as automatically requiring its own test block.
+- Reducer identity and unaffected-reference guarantees are tested with identity assertions.
+- Persistence corruption/failure behavior and pre-hydration write protection are tested.
+- Tests run with npm run test -- --run and fail normally if no tests are discovered.
+- No flaky time dependence; use fake timers for debounce only if required.
+- npm run check passes.
+
+DONE WHEN
+The suite protects the highest-risk architectural claims without expanding into a 20-plus-test implementation that violates the assessment time box.

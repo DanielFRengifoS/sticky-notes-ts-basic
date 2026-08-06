@@ -1,0 +1,162 @@
+TICKET ID: SN-03
+TITLE: Implement pure board geometry and normalization functions
+PRIORITY: BLOCKING
+DEPENDS ON: SN-02
+PRIMARY FILES:
+- src/domain/geometry.ts
+- src/domain/geometry.test.ts
+
+GOAL
+Implement deterministic, DOM-free geometry functions used identically by preview and commit paths.
+
+REQUIRED EXPORTED FUNCTIONS
+
+1. POINTER CONVERSION
+function clientPointToBoardPoint(
+  point: ClientPoint,
+  bounds: BoardBounds
+): BoardPoint;
+
+Behavior:
+- x = point.clientX - bounds.left
+- y = point.clientY - bounds.top
+- Do not clamp here unless the implementation can prove callers require it. Rectangle functions own board normalization.
+
+2. CREATION THRESHOLD
+function hasReachedCreateThreshold(
+  origin: BoardPoint,
+  current: BoardPoint
+): boolean;
+
+Behavior:
+- A drag must move at least MIN_CREATE_DRAG_DISTANCE from its origin.
+- Use one documented metric consistently for preview and commit. Euclidean distance is preferred.
+- A gesture below the threshold creates no preview and no note.
+
+3. CREATE RECTANGLE
+function createRectFromDrag(
+  origin: BoardPoint,
+  current: BoardPoint,
+  boardSize: Size
+): NoteRect;
+
+Required order:
+a. Derive x/y/width/height from drag direction.
+b. Apply effective minimum dimensions.
+c. Normalize the complete rectangle against the board.
+d. Round committed geometry to integer pixels.
+
+Drag directions:
+- Support down-right, down-left, up-right, and up-left.
+- The note must extend in the user's drag direction as much as possible.
+- If applying minimum dimensions would cross a board edge, move/clamp the complete rectangle rather than independently corrupting origin and size.
+
+Small-board behavior:
+- If board width is smaller than MIN_NOTE_WIDTH, effective minimum and maximum width for that axis is the available board width.
+- Apply the analogous rule for height.
+
+4. MOVE RECTANGLE
+function moveRect(
+  initialRect: NoteRect,
+  pointerOrigin: BoardPoint,
+  currentPointer: BoardPoint,
+  boardSize: Size
+): NoteRect;
+
+Behavior:
+- Preserve width and height.
+- Apply pointer delta from pointerOrigin.
+- Clamp x/y so the full note remains inside the board.
+- Handle a note larger than the board defensively through normalization rather than producing NaN or negative coordinates.
+- Return integer-pixel geometry.
+
+5. RESIZE RECTANGLE
+function resizeRect(
+  initialRect: NoteRect,
+  pointerOrigin: BoardPoint,
+  currentPointer: BoardPoint,
+  boardSize: Size
+): NoteRect;
+
+Behavior:
+- Resize only from the bottom-right corner.
+- Keep x and y fixed unless normalization is required because persisted/invalid input is larger than the board.
+- Width and height respond to pointer delta.
+- Enforce effective minimum dimensions.
+- Clamp maximum width to board width - x.
+- Clamp maximum height to board height - y.
+- Return integer-pixel geometry.
+
+6. HYDRATION/GENERAL NORMALIZATION
+function normalizeRectToBoard(
+  rect: NoteRect,
+  boardSize: Size
+): NoteRect;
+
+Behavior:
+- Rejecting malformed numeric data belongs to persistence validation, not here.
+- For finite valid numeric input, fit the rectangle inside the board.
+- Enforce available-axis dimensions when the board is smaller than configured minimums.
+- Ensure width/height are positive and no larger than available board dimensions.
+- Ensure x/y leave the whole rectangle inside the board.
+- Round output to integers.
+
+7. STRICT RECTANGLE HIT TEST
+function isPointStrictlyInsideRectangle(
+  point: BoardPoint,
+  rect: NoteRect
+): boolean;
+
+Behavior:
+- Return true only when:
+  point.x > rect.x
+  point.x < rect.x + rect.width
+  point.y > rect.y
+  point.y < rect.y + rect.height
+- A point exactly on any edge is false.
+
+8. TRASH HELPER
+Implement or export:
+function isPointerOverTrash(
+  pointer: BoardPoint,
+  trashRect: NoteRect
+): boolean;
+
+It MUST call isPointStrictlyInsideRectangle rather than reproducing the condition.
+
+BOOTSTRAP TEST REQUIREMENT
+- Add at least one real, behavior-level geometry test in geometry.test.ts as part of this ticket.
+- A good first test is either reverse-direction creation or strict trash-edge behavior.
+- Do not add a placeholder assertion and do not configure the runner to pass with zero tests.
+- After this ticket, npm run test -- --run must succeed by discovering and running the real test.
+- SN-15 will consolidate and expand this file into the final focused suite.
+
+PURE-FUNCTION RULES
+- No DOM reads.
+- No React.
+- No storage.
+- No mutation of arguments.
+- No hidden global board measurement.
+- No separate preview-only and commit-only geometry functions.
+- No arbitrary magic numbers outside exported constants.
+
+HIGH-RISK EDGE CASES TO HANDLE
+- Reverse-direction creation.
+- Minimum-sized creation near all board edges.
+- Board smaller than minimum note dimensions.
+- Pointer movement beyond each board edge.
+- Resize beyond board bounds.
+- Strict trash-edge behavior.
+- Negative input positions during hydration normalization.
+- Fractional coordinates.
+
+ACCEPTANCE CRITERIA
+- Preview and commit callers can use the same functions.
+- All output note rectangles are finite, integer-valued, positive-sized, and contained by the supplied board size.
+- Strict trash-edge behavior is centralized.
+- Functions remain independent from React and the DOM.
+- At least one real geometry test exists now; SN-15 later completes the focused priority pool.
+- npm run test -- --run succeeds without a zero-test allowance.
+
+DONE WHEN
+All coordinate conversion, creation, movement, resizing, normalization, and trash hit testing can be trusted as pure domain operations.

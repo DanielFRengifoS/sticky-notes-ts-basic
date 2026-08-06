@@ -1,0 +1,107 @@
+TICKET ID: SN-12
+TITLE: Implement versioned local-storage parsing, validation, safe reads, and safe writes
+PRIORITY: MUST SHIP
+DEPENDS ON: SN-02
+PRIMARY FILES:
+- src/infrastructure/notesStorage.ts
+- src/infrastructure/notesStorage.test.ts
+
+GOAL
+Create a React-independent storage boundary that safely converts unknown persisted data into validated Note objects and never makes the app unusable when storage fails.
+
+STORED FORMAT
+Use:
+interface PersistedNotesV1 {
+  version: 1;
+  notes: unknown;
+}
+
+Store JSON under:
+STORAGE_KEY = "sticky-notes-ts:document"
+
+REQUIRED FUNCTIONS
+Implement and export:
+
+function parseStoredJson(raw: string | null): unknown;
+function parsePersistedNotes(value: unknown): Note[];
+function loadNotes(storage: Storage): Note[];
+function saveNotes(storage: Storage, notes: Note[]): void;
+
+1. parseStoredJson
+- null input returns an unknown representation that leads to [].
+- Invalid JSON must not throw to callers.
+- Return parsed unknown on valid JSON.
+- Catch SyntaxError without assuming catch variable type.
+
+2. parsePersistedNotes
+Validation policy:
+- Non-object root: [].
+- Unsupported/missing version: [].
+- Invalid notes collection (not an array): [].
+- Invalid individual note: skip only that item.
+- Duplicate ID: keep the first valid note and skip later duplicates.
+- Invalid geometry: skip the note.
+- Text longer than MAX_NOTE_TEXT_LENGTH: truncate.
+- Text must be a string.
+- ID must be a non-empty string.
+- Rect must be an object with finite numeric x, y, width, height.
+- Width and height must be greater than zero.
+- Board-dependent clamping does NOT happen here because no board size is available.
+- Do not build an exhaustive schema framework.
+
+3. loadNotes
+- Read storage.getItem(STORAGE_KEY).
+- Parse JSON and payload.
+- Catch any storage read failure and return [].
+- Never throw to React.
+- Do not normalize geometry against the board here.
+
+4. saveNotes
+- Serialize exactly:
+  { version: 1, notes }
+- Write with storage.setItem(STORAGE_KEY, json).
+- Catch serialization/storage write failures.
+- Never throw to React.
+- Do not add timers or debouncing here.
+
+TYPE GUARDS
+Use small explicit helpers for:
+- unknown record checks.
+- finite numbers.
+- valid rect shape.
+- valid note shape.
+Do not use any or broad "as Note" assertions before validation.
+
+SECURITY/ROBUSTNESS BOUNDARY
+- Treat all stored content as untrusted unknown.
+- Do not hydrate additional unexpected properties.
+- Do not execute or parse HTML.
+- Plain text is stored as text.
+- Keep the first duplicate ID to preserve original stacking order deterministically.
+
+ERROR HANDLING
+The source plan requires catching failures and keeping the app usable. Console warnings are optional and should not spam normal operation. Do not expose an error modal for this assessment.
+
+OUT OF SCOPE
+- Measuring board.
+- Rectangle normalization.
+- React hooks/effects.
+- Debounce timer.
+- pagehide flushing.
+- Migrations beyond rejecting unsupported versions.
+- REST API.
+
+ACCEPTANCE CRITERIA
+- Missing storage returns [].
+- Invalid JSON returns [].
+- Unsupported version returns [].
+- Invalid collection returns [].
+- Malformed individual notes are skipped while valid siblings survive.
+- Duplicate IDs retain the first valid note only.
+- Invalid geometry is skipped.
+- Long text is truncated to 5000.
+- Storage read/write exceptions do not escape.
+- Module imports no React or DOM measurement code.
+
+DONE WHEN
+Storage content can be treated as untrusted without risking crashes or silently enabling a pre-hydration write.

@@ -1,0 +1,47 @@
+STICKY NOTES - AI AGENT TICKET INDEX
+
+Purpose
+This package decomposes the complete frozen implementation plan into ordered plain-text tickets. The tickets are optimized for an implementation agent: each contains dependencies, file ownership, exact behavior, acceptance criteria, manual checks, and scope guards.
+
+Recommended execution order
+SN-00  Enforce project execution contract
+SN-01  Bootstrap strict project and board shell
+SN-02  Define domain types and constants
+SN-03  Implement pure geometry
+SN-04  Implement notes reducer
+SN-05  Build static Board and memoized NoteCard
+SN-06  Build shared gesture lifecycle
+SN-07  Implement movement
+SN-08  Implement resizing
+SN-09  Implement creation
+SN-10  Implement trash deletion
+SN-11  Complete selection, stacking, editing, focus, and Escape
+SN-12  Implement versioned storage module
+SN-13  Integrate measurement, hydration, normalization, and save
+SN-14  Complete styling, accessibility, and event polish
+SN-15  Add focused unit tests
+SN-16  Run integration/manual verification and fix defects
+SN-17  Complete README and submission package
+SN-18  OPTIONAL Playwright smoke test; first to cut
+
+Execution ownership and safe parallelization
+- Execute SN-06 through SN-10 sequentially in the same working context.
+- Do not assign movement, resizing, creation, and trash deletion to separate agents, branches, or independent patches.
+- The interaction engine must have one owner until all four core interactions work because these tickets share useBoardGestures.ts, its public API, preview state, and terminal commit/cancel behavior.
+- Safe parallel work is limited to SN-03 geometry, SN-04 reducer, and SN-12 storage after their stated dependencies are satisfied.
+- SN-10 depends on movement because deletion is a movement commit branch.
+- Integration, the final focused test pass, and README should be finalized only after shared behavior stabilizes.
+
+Source precedence
+1. TICKET-00 project execution contract.
+2. The ticket currently being implemented.
+3. Existing implementation produced by earlier tickets.
+If a conflict appears, preserve must-ship behavior and the frozen architecture. Do not expand scope.
+
+Definition of overall done
+- SN-00 through SN-17 are complete.
+- SN-18 is optional.
+- npm run check passes.
+- All four core interactions work.
+- Persistence does not write before hydration.
+- README claims match code.

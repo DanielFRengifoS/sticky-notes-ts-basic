@@ -1,0 +1,87 @@
+TICKET ID: SN-08
+TITLE: Implement bottom-right note resizing with minimum dimensions and board clamping
+PRIORITY: BLOCKING / CORE INTERACTION 2
+DEPENDS ON: SN-03, SN-05, SN-06
+PRIMARY FILES:
+- src/features/board/useBoardGestures.ts
+- src/features/board/Board.tsx
+- src/features/board/NoteCard.tsx
+- src/features/board/Board.css
+
+GOAL
+Allow a note to resize from a generous bottom-right handle while preserving its top-left anchor and enforcing board/minimum constraints.
+
+START RULES
+Resizing starts only when:
+- Pointer start passes the primary-left-button gate.
+- pointerdown occurs on the bottom-right resize handle.
+- No other gesture is active.
+
+START SEQUENCE
+On valid resize pointerdown:
+1. Prevent the event from initiating movement or empty-board behavior.
+2. Select the note.
+3. Bring it to front.
+4. Measure boardSurface bounds.
+5. Convert start point to BoardPoint.
+6. Snapshot note.rect as initialRect.
+7. Store a resizing Gesture with pointerId, noteId, pointerOrigin, latestPointer, initialRect, and boardBounds.
+8. Capture the pointer on the resize handle.
+9. Mark gesture-active UI state.
+
+RESIZE PREVIEW
+For each scheduled frame:
+- Compute rect using resizeRect(initialRect, pointerOrigin, latestPointer, boardSize).
+- Apply it only as active note preview.
+- Do not dispatch reducer updates during pointermove.
+- Keep x/y fixed under normal valid input.
+- Enforce effective minimum width and height.
+- Do not let the bottom/right edges leave the board.
+- Handle a board smaller than configured minimums without invalid geometry.
+
+COMMIT
+On matching pointerup:
+- Convert release coordinates from the event.
+- Recompute final rect with resizeRect.
+- Dispatch noteRectCommitted using the final rect.
+- Do not use rendered preview as final data.
+- Clear all preview/capture state through shared commit behavior.
+
+CANCELLATION
+pointercancel, Escape, matching lostpointercapture, and unmount:
+- Never dispatch a rect.
+- Clear preview.
+- Leave committed note dimensions unchanged.
+
+STYLING AND USABILITY
+- Resize handle must have a generous visual/hit target in the bottom-right corner.
+- Cursor: nwse-resize.
+- touch-action: none.
+- The handle must remain usable over the textarea/note body.
+- Avoid transitions during resize so the preview tracks the pointer accurately.
+- Ensure text editing remains usable and the handle does not cover an excessive editor area.
+
+OUT OF SCOPE
+- Resize from any other edge/corner.
+- Aspect-ratio locking.
+- Continuous normalization on window resize.
+- Keyboard resizing.
+
+ACCEPTANCE CRITERIA
+- Resizing changes width and height from the bottom-right handle only.
+- Minimum dimensions are enforced unless the board itself is smaller.
+- A note cannot resize outside the board.
+- Final dimensions come from pointerup.
+- Fast release commits correct geometry.
+- Cancellation leaves committed geometry unchanged.
+- Resize does not start movement or creation.
+
+MANUAL VERIFICATION
+- Resize larger toward bottom/right limits.
+- Resize smaller below both minimums.
+- Resize rapidly and release before a rendered frame.
+- Press Escape during resize.
+- Verify handle usability at 1024 x 768.
+
+DONE WHEN
+Resize is reliable enough to satisfy the core checkpoint independently of movement, creation, and delete.
