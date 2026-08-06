@@ -1,6 +1,6 @@
 import { useCallback, useReducer, useRef, useState } from 'react';
 import { notesReducer } from '../../domain/notesReducer';
-import type { NoteId, NoteRect, NotesState } from '../../domain/types';
+import type { BoardTool, NoteId, NoteRect, NotesState } from '../../domain/types';
 import { NoteCard } from './NoteCard';
 import { useBoardGestures } from './useBoardGestures';
 import './Board.css';
@@ -20,6 +20,7 @@ export function Board() {
   const [state, dispatch] = useReducer(notesReducer, DEV_INITIAL_STATE);
   const [selectedId, setSelectedId] = useState<NoteId | null>(null);
   const [pendingFocusId, setPendingFocusId] = useState<NoteId | null>(null);
+  const [tool, setTool] = useState<BoardTool>('select');
 
   const boardSurfaceRef = useRef<HTMLDivElement>(null);
   const trashRef = useRef<HTMLDivElement>(null);
@@ -51,6 +52,15 @@ export function Board() {
     dispatch({ type: 'noteAdded', note: { id, rect, text: '' } });
     setSelectedId(id);
     setPendingFocusId(id);
+    setTool('select');
+  }, []);
+
+  const handleToggleCreate = useCallback(() => {
+    setTool((current) => (current === 'create' ? 'select' : 'create'));
+  }, []);
+
+  const handleDisarmCreateTool = useCallback(() => {
+    setTool('select');
   }, []);
 
   const handleRemoveNote = useCallback((noteId: NoteId) => {
@@ -72,23 +82,30 @@ export function Board() {
     onBoardPointerCancel,
     onBoardLostPointerCapture,
     activeNotePreview,
+    creationPreview,
     gestureActive,
   } = useBoardGestures({
     boardSurfaceRef,
     trashRef,
-    tool: 'select',
+    tool,
     getNoteRect,
     onInteractionStart: handleInteractionStart,
     onCommitRect: handleCommitRect,
     onCreateNote: handleCreateNote,
     onRemoveNote: handleRemoveNote,
+    onDisarmCreateTool: handleDisarmCreateTool,
   });
 
   return (
     <div className="board">
       <div className="toolbar">
-        <button type="button" className="toolbar__button" aria-pressed={false}>
-          New note
+        <button
+          type="button"
+          className="toolbar__button"
+          aria-pressed={tool === 'create'}
+          onClick={handleToggleCreate}
+        >
+          {tool === 'create' ? 'Drag on the board to create' : 'New note'}
         </button>
       </div>
 
@@ -97,6 +114,7 @@ export function Board() {
           ref={boardSurfaceRef}
           className="boardSurface"
           data-gesture-active={gestureActive}
+          data-tool={tool}
           onPointerDown={onBoardPointerDown}
           onPointerMove={onBoardPointerMove}
           onPointerUp={onBoardPointerUp}
@@ -126,6 +144,19 @@ export function Board() {
               onFocusRequestConsumed={handleFocusRequestConsumed}
             />
           ))}
+
+          {creationPreview ? (
+            <div
+              className="creationPreview"
+              aria-hidden="true"
+              style={{
+                left: creationPreview.x,
+                top: creationPreview.y,
+                width: creationPreview.width,
+                height: creationPreview.height,
+              }}
+            />
+          ) : null}
 
           <div className="trashZone" ref={trashRef} aria-hidden="true">
             <span className="trashZone__icon" aria-hidden="true">

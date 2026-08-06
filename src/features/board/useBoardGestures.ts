@@ -40,6 +40,7 @@ export interface BoardGesturesParams {
   onCommitRect: (noteId: NoteId, rect: NoteRect) => void;
   onCreateNote: (rect: NoteRect) => void;
   onRemoveNote: (noteId: NoteId) => void;
+  onDisarmCreateTool: () => void;
 }
 
 export interface BoardGesturesResult {
@@ -355,6 +356,11 @@ export function useBoardGestures(
         { clientX: event.clientX, clientY: event.clientY },
         boardBounds,
       );
+      const trashRect = readTrashRect(
+        paramsRef.current.trashRef.current,
+        boardBounds,
+      );
+      if (isPointerOverTrash(pointerOrigin, trashRect)) return;
       gestureRef.current = {
         type: 'creating',
         pointerId: event.pointerId,
@@ -418,8 +424,12 @@ export function useBoardGestures(
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (gestureRef.current.type === 'idle') return;
-      cancelActiveGesture('escape');
+      if (gestureRef.current.type !== 'idle') {
+        cancelActiveGesture('escape');
+      }
+      if (paramsRef.current.tool === 'create') {
+        paramsRef.current.onDisarmCreateTool();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);

@@ -65,6 +65,10 @@
   cursor: grabbing;
 }
 
+.boardSurface[data-tool='create'] {
+  cursor: crosshair;
+}
+
 .emptyState {
   position: absolute;
   inset: 0;
@@ -75,6 +79,15 @@
   padding: 1.5rem;
   text-align: center;
   color: #5b6470;
+  pointer-events: none;
+}
+
+.creationPreview {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px dashed #2563eb;
+  border-radius: 0.5rem;
+  background: rgba(37, 99, 235, 0.08);
   pointer-events: none;
 }
 
