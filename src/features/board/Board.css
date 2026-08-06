@@ -57,6 +57,14 @@
   overflow: hidden;
 }
 
+.boardSurface[data-gesture-active='true'] {
+  user-select: none;
+}
+
+.boardSurface[data-gesture-active='true'] .noteHeader {
+  cursor: grabbing;
+}
+
 .emptyState {
   position: absolute;
   inset: 0;

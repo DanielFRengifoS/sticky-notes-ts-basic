@@ -49,6 +49,12 @@ describe("createRectFromDrag", () => {
 });
 
 describe("moveRect", () => {
+  it("translates by the pointer delta when the result stays inside the board", () => {
+    const initial: NoteRect = { x: 100, y: 100, width: 160, height: 120 };
+    const moved = moveRect(initial, { x: 0, y: 0 }, { x: 50, y: 30 }, board);
+    expect(moved).toEqual({ x: 150, y: 130, width: 160, height: 120 });
+  });
+
   it("clamps a note dragged past the board edge back inside", () => {
     const initial: NoteRect = { x: 900, y: 700, width: 160, height: 120 };
     const moved = moveRect(initial, { x: 0, y: 0 }, { x: 500, y: 500 }, board);

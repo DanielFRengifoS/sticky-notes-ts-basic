@@ -220,6 +220,7 @@ export function useBoardGestures(
           break;
         }
         case 'moving': {
+          if (isPointerOverTrash(releaseBoardPoint, active.trashRect)) break;
           const rect = moveRect(
             active.initialRect,
             active.pointerOrigin,
