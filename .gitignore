@@ -5,6 +5,11 @@ node_modules/
 dist/
 coverage/
 
+# Playwright
+playwright-report/
+test-results/
+/playwright/.cache/
+
 # Local environment
 .env
 .env.*
