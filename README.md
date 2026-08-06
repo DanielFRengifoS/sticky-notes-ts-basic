@@ -1,96 +1,116 @@
 # Sticky Notes
 
-A small desktop sticky-notes board built with React and TypeScript. You drag to create notes, drag them around, resize them, edit their text, and throw them away by dropping them on a trash zone. There's no drag-and-drop library behind any of it, the pointer handling is all hand-written, so it's easy to see exactly how the interactions work.
+A desktop sticky-notes board built with React and TypeScript. Users can create notes by dragging on the board, move and resize them, edit their text, and delete them by releasing the pointer over a trash zone.
 
-![Sticky Notes board with several overlapping notes, the toolbar, and the trash zone](docs/screenshot.png)
+The interactions are implemented directly with the Pointer Events API rather than a drag-and-drop library, keeping the gesture lifecycle and geometry logic visible for review.
 
-## What's implemented
+## Features
 
-- Drag on an empty board to create a note at the position and size you draw.
-- Drag a note's header to move it.
-- Drag the bottom-right handle to resize.
-- Release the pointer while it's over the trash to delete a note.
-- Undo the last deletion from a brief toast that appears after you throw a note away.
-- Edit note text (plain text, controlled `<textarea>`).
+- Create a note by dragging its desired position and size on the board.
+- Move a note by dragging its header.
+- Resize a note using its bottom-right handle.
+- Delete a note by releasing the pointer over the trash zone.
+- Undo the most recent deletion for approximately five seconds.
+- Edit note text using a controlled `<textarea>`.
 - Bring a note to the front by interacting with it.
-- Save and restore notes from local storage, with a versioned payload.
-- Press `Escape` to cancel an in-progress gesture or disarm create mode.
+- Save and restore notes using versioned local storage.
+- Cancel an active gesture or leave create mode with `Escape`.
 
-## How to use it
+## Usage
 
-1. Click **New note** in the toolbar. The button flips to **Drag on the board to create** to show it's armed.
-2. Drag anywhere on the empty board to draw the note. A short click that doesn't really move won't create anything, so you don't get stray notes from a stray click.
-3. Drag a note by its header (the strip along the top) to move it.
-4. Drag the small handle in the bottom-right corner to resize.
-5. To delete, pick a note up by its header and let go while the cursor is over the trash zone. The trash changes its label when you're actually over it, and it's the cursor position that counts, not whether the note overlaps.
-6. Changed your mind? When you delete a note, a small "Note deleted / Undo" toast appears for about five seconds. Click **Undo** to bring that exact note back, same text, same size, same spot, and same stacking position.
-7. Click into a note and type to edit it. Touching a note also selects it and brings it to the front.
-8. Press `Escape` at any point to cancel the current drag, or to turn create mode back off.
+1. Click **New note**. The button changes to **Drag on the board to create** while create mode is active.
+2. Drag on an empty part of the board to create a note. Very short drags are ignored to prevent accidental creation.
+3. Drag a note by its header to move it.
+4. Drag the bottom-right handle to resize it.
+5. To delete a note, move it and release the pointer while the cursor is over the trash zone. Deletion is based on the pointer position rather than note overlap.
+6. After deletion, use the temporary **Undo** action to restore the note with its original text, geometry, and stacking position.
+7. Click inside a note to edit its text. Interacting with a note also selects it and brings it to the front.
+8. Press `Escape` to cancel the active gesture or leave create mode.
 
-Your notes are saved automatically a moment after you stop making changes, and they come back on reload.
+Notes are saved automatically after committed changes and restored when the application reloads.
 
-## Commands and runtime
+## Requirements
 
-```bash
-npm install      # install dependencies (generates package-lock.json if missing)
-npm run dev      # start the Vite dev server
-npm run check    # typecheck + lint + run tests + production build
-npm run build    # production build into dist/
-npm run preview  # serve the built output from dist/ for inspection
-```
+- Node.js `>= 20.19`
+- npm
 
-`npm run preview` is worth calling out: it serves the already-built production bundle so you can click through exactly what `npm run build` produced, rather than the dev server.
+The application was developed with Node.js `20.20.2` and npm `10.8.2`.
 
-There's also an optional end-to-end smoke test, one Chromium run driven by Playwright, that I deliberately kept out of `npm run check` so the normal gate never has to pull down a browser. If you want to run it, grab the browser once and go:
+## Commands
 
 ```bash
-npx playwright install chromium   # one-time, downloads the browser
-npm run test:e2e                  # starts the dev server and runs the smoke test
+npm install
+npm run dev
+npm run check
+npm run build
+npm run preview
 ```
 
-It arms create mode, drags out a note, types into it, moves it, resizes it, reloads to prove the note came back from local storage, and finally drags it onto the trash to delete it.
+`npm run check` runs the complete quality gate:
 
-I built and ran this with **Node v20.20.2** and **npm 10.8.2** on macOS. The `engines` field asks for Node >= 20.19.
+- TypeScript type checking
+- ESLint
+- Unit tests
+- Production build
+
+`npm run preview` serves the generated production bundle from `dist/`.
+
+### End-to-end smoke test
+
+A focused Playwright smoke test covers the main workflow without making browser installation part of the standard quality gate.
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+The test creates a note, edits it, moves and resizes it, reloads the application to verify persistence, and deletes the note through the trash zone.
 
 ## Architecture
 
-The app keeps a firm line between committed data and the moment-to-moment noise of a drag. The notes themselves live in a small pure reducer ([`src/domain/notesReducer.ts`](src/domain/notesReducer.ts)) as an ordered array, and that array order _is_ the stacking order, so the last note in the list is the one on top. Every action returns the same state object when nothing actually changed and preserves the object references of notes it didn't touch, which is what lets `React.memo` on the note cards do its job. All positions are measured against a single element, the borderless, padding-free `boardSurface`, and that one element is the only coordinate space used for pointer math, previews, trash hit-testing, CSS positioning, and the rectangles I persist. Deletion is a small example of the committed-vs-ephemeral split: the removed note and its old index sit briefly in the board's ephemeral state to back the undo toast, while the actual restore is one pure reducer action that splices the note back into its original stacking slot.
+The application separates committed note data from temporary interaction state. Notes are stored in an ordered array managed by a small pure reducer in `src/domain/notesReducer.ts`; array order represents stacking order, with the last note rendered at the front. Reducer operations preserve the state object for no-op actions and retain references to unaffected notes, allowing memoized note components to avoid unnecessary rendering. The interactive `boardSurface` is the single coordinate system used for pointer conversion, geometry calculations, preview rendering, trash hit-testing, CSS positioning, and persisted rectangles. Undo state is temporary board UI state, while restoration is performed through a pure reducer action that inserts the deleted note at its previous stacking position.
 
-Gestures use the Pointer Events API with pointer capture, so a drag keeps working even when the cursor leaves the note or slips outside the window. The raw pointer position is written to a mutable ref rather than React state; a single `requestAnimationFrame` turns that into at most one preview update per frame, and only the note being dragged gets new preview props. The detail I care most about is that the committed geometry is computed from the `pointerup` event itself, never from the last rendered frame (which can be a frame behind). Commit and cancel are deliberately separate paths, `Escape`, `pointercancel`, and lost capture all cancel without ever committing, and the gesture is cleared _before_ pointer capture is released so the trailing `lostpointercapture` event is a harmless no-op. That logic lives in [`src/features/board/useBoardGestures.ts`](src/features/board/useBoardGestures.ts).
+Pointer interactions are implemented in `src/features/board/useBoardGestures.ts` using the Pointer Events API and pointer capture. Raw pointer positions are stored in a mutable ref, while `requestAnimationFrame` limits rendered previews to at most one update per frame. Only the active note receives changing preview geometry. Final geometry is calculated synchronously from the `pointerup` coordinates rather than from the last rendered preview, avoiding stale-frame commits. Successful completion and cancellation use separate terminal paths: `Escape`, `pointercancel`, and active capture loss discard the gesture without committing changes.
 
-Persistence is intentionally boring. The board starts in a `measuring` phase and, only once it has a real non-zero size, reads local storage, validates every stored note, normalizes the geometry to the current board, installs the notes, and flips to `ready` (see [`src/features/board/Board.tsx`](src/features/board/Board.tsx)). Saving is gated behind that `ready` flag and debounced by ~300 ms, which is what stops React Strict Mode's double-invoked effects, or the first empty render, from overwriting good saved data with an empty array. Everything treated as stored input is validated as `unknown` and narrowed in [`src/infrastructure/notesStorage.ts`](src/infrastructure/notesStorage.ts). I left out an external drag-and-drop library on purpose so the interaction engineering stays visible instead of hidden inside a dependency.
+Persistence is handled separately in `src/infrastructure/notesStorage.ts`. The board first measures its usable surface, then reads and validates the versioned local-storage payload, normalizes restored geometry, installs the notes, and transitions to a ready state. Saving is disabled until that process is complete, preventing the initial empty state from replacing valid stored data. Writes are debounced by approximately 300 ms, while React state remains immediately responsive. Stored values are treated as `unknown` and validated before use.
 
-## Trade-offs
+## Design decisions and trade-offs
 
-- **No drag-and-drop library.** The whole point of the exercise is the pointer handling, so hiding it behind a library felt like the wrong call. I wrote it directly.
-- **No continuous re-layout on window resize.** Notes are normalized once at hydration and clamped whenever you commit a move or resize. I don't rewrite and re-save every note's position while you drag the browser window. It's out of scope and mostly just churn.
-- **No `pagehide` flush.** The debounced save plus reload covers the realistic cases; a flush-on-unload path added complexity I didn't think was worth it here.
-- **Focused unit tests over broad infrastructure.** I put tests where the real risk is (geometry, the reducer, persistence validation) instead of standing up a full browser-test or schema-validation stack.
-- **Array order as z-order.** With a handful of notes, using array position for stacking keeps the reducer and persistence dead simple. It wouldn't be my choice for thousands of notes, but that isn't this.
+- **Direct pointer handling:** No drag-and-drop library is used so the interaction lifecycle, pointer capture, cancellation behavior, and geometry calculations remain explicit.
+- **Single coordinate surface:** All note geometry is relative to one borderless, padding-free board element, avoiding conversions between competing coordinate systems.
+- **Array-based stacking:** Array order provides a simple representation of z-order for the expected number of notes and keeps persistence straightforward.
+- **No continuous viewport normalization:** Restored notes are normalized during hydration, and modified notes are clamped when committed. The application does not continuously rewrite and persist all note positions while the window is resized.
+- **No unload-time persistence flush:** A normal debounced write path is used instead of adding a separate `pagehide` lifecycle.
+- **Focused testing:** Pure geometry, reducer behavior, persistence validation, and important reference-preservation cases are covered by unit tests. One small browser smoke test verifies the primary end-to-end workflow.
 
 ## Browser support
 
-Target: current Chrome, Firefox, and Edge on the desktop, per the brief. This is the compatibility goal, not a claim that every combination was hand-tested.
+The application targets current desktop versions of:
 
-## What I actually tested
+- Google Chrome
+- Mozilla Firefox
+- Microsoft Edge
 
-Manually clicked through create, edit, move, resize, reload, and trash-delete on:
+### Manually verified
 
 - Chrome on macOS
 - Firefox on macOS
 - Chrome on Windows 11
 - Firefox on Windows 11
 
-I did **not** have Edge available to test by hand. It's a target and uses the same standards-based Pointer Events path as Chrome, but I'm not going to claim a manual pass I didn't do. On top of that, `npm run check` (typecheck, lint, unit tests, production build) passes, and the Playwright smoke test walks the whole happy path, create, type, move, resize, reload-and-persist, then drag-to-trash, in headless Chromium (`npm run test:e2e`).
+Microsoft Edge is a supported target but was not manually verified.
+
+In addition, the complete `npm run check` command passes, and the Playwright smoke test passes in headless Chromium.
 
 ## Known limitations
 
-- Desktop-only by design; no touch/mobile-specific handling.
-- Notes aren't repositioned live if the viewport changes after hydration, they're only clamped on the next commit.
-- Undo covers only the single most recent deletion (a roughly five-second window, and it isn't persisted across reloads); there's no general undo/redo history.
-- No note colors, no REST API, and no keyboard-driven move/resize.
-- Edge is targeted but hasn't been manually verified.
+- The application is designed for desktop use; touch and mobile behavior were not specifically tested.
+- Notes are not repositioned continuously when the viewport changes after hydration. They are clamped the next time their geometry is committed.
+- Undo applies only to the most recent deletion, expires after approximately five seconds, and is not persisted across reloads.
+- There is no general undo/redo history.
+- Note colors, REST persistence, and keyboard-based movement or resizing are not implemented.
+- Microsoft Edge was not manually tested.
 
 ## Time spent
 
-Roughly 2 to 2.5 hours.
+Approximately 2 to 2.5 hours.
