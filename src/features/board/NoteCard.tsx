@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, type PointerEvent } from 'react';
+import { memo, useLayoutEffect, useRef, type PointerEvent } from 'react';
 import type { Note, NoteId, NoteRect } from '../../domain/types';
 
 interface NoteCardProps {
@@ -7,6 +7,7 @@ interface NoteCardProps {
   selected: boolean;
   pendingFocus: boolean;
   onTextChange: (noteId: NoteId, text: string) => void;
+  onNoteInteraction: (noteId: NoteId) => void;
   onHeaderPointerDown: (noteId: NoteId, event: PointerEvent<HTMLDivElement>) => void;
   onResizePointerDown: (noteId: NoteId, event: PointerEvent<HTMLDivElement>) => void;
   onFocusRequestConsumed: (noteId: NoteId) => void;
@@ -18,6 +19,7 @@ function NoteCardComponent({
   selected,
   pendingFocus,
   onTextChange,
+  onNoteInteraction,
   onHeaderPointerDown,
   onResizePointerDown,
   onFocusRequestConsumed,
@@ -26,7 +28,7 @@ function NoteCardComponent({
 
   const rect = previewRect ?? note.rect;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!pendingFocus) return;
     editorRef.current?.focus();
     onFocusRequestConsumed(note.id);
@@ -53,7 +55,11 @@ function NoteCardComponent({
         className="noteEditor"
         value={note.text}
         onChange={(event) => onTextChange(note.id, event.target.value)}
-        onPointerDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => {
+          onNoteInteraction(note.id);
+          event.stopPropagation();
+        }}
+        onFocus={() => onNoteInteraction(note.id)}
       />
 
       <div

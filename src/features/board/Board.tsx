@@ -1,4 +1,4 @@
-import { useCallback, useReducer, useRef, useState } from 'react';
+import { useCallback, useReducer, useRef, useState, type PointerEvent } from 'react';
 import { notesReducer } from '../../domain/notesReducer';
 import type { BoardTool, NoteId, NoteRect, NotesState } from '../../domain/types';
 import { NoteCard } from './NoteCard';
@@ -38,7 +38,7 @@ export function Board() {
     dispatch({ type: 'noteTextChanged', noteId, text });
   }, []);
 
-  const handleInteractionStart = useCallback((noteId: NoteId) => {
+  const handleNoteInteraction = useCallback((noteId: NoteId) => {
     setSelectedId(noteId);
     dispatch({ type: 'noteBroughtToFront', noteId });
   }, []);
@@ -90,12 +90,27 @@ export function Board() {
     trashRef,
     tool,
     getNoteRect,
-    onInteractionStart: handleInteractionStart,
+    onInteractionStart: handleNoteInteraction,
     onCommitRect: handleCommitRect,
     onCreateNote: handleCreateNote,
     onRemoveNote: handleRemoveNote,
     onDisarmCreateTool: handleDisarmCreateTool,
   });
+
+  const handleSurfacePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      onBoardPointerDown(event);
+      if (
+        tool === 'select' &&
+        event.target === event.currentTarget &&
+        event.isPrimary &&
+        event.button === 0
+      ) {
+        setSelectedId(null);
+      }
+    },
+    [onBoardPointerDown, tool],
+  );
 
   return (
     <div className="board">
@@ -116,7 +131,7 @@ export function Board() {
           className="boardSurface"
           data-gesture-active={gestureActive}
           data-tool={tool}
-          onPointerDown={onBoardPointerDown}
+          onPointerDown={handleSurfacePointerDown}
           onPointerMove={onBoardPointerMove}
           onPointerUp={onBoardPointerUp}
           onPointerCancel={onBoardPointerCancel}
@@ -140,6 +155,7 @@ export function Board() {
               selected={selectedId === note.id}
               pendingFocus={pendingFocusId === note.id}
               onTextChange={handleTextChange}
+              onNoteInteraction={handleNoteInteraction}
               onHeaderPointerDown={onHeaderPointerDown}
               onResizePointerDown={onResizePointerDown}
               onFocusRequestConsumed={handleFocusRequestConsumed}
