@@ -1,4 +1,5 @@
 .board {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -198,4 +199,44 @@
   bottom: 3px;
   border-left: 0.5rem solid transparent;
   border-bottom: 0.5rem solid rgba(23, 32, 42, 0.4);
+}
+
+.undoToast {
+  position: absolute;
+  left: 50%;
+  bottom: 2rem;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.6rem 0.5rem 1rem;
+  border-radius: 0.5rem;
+  background: #17202a;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(23, 32, 42, 0.28);
+  font-size: 0.85rem;
+}
+
+.undoToast__label {
+  font-weight: 500;
+}
+
+.undoToast__button {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  background: #ffffff;
+  color: #17202a;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.undoToast__button:hover {
+  background: #e8edf3;
+}
+
+.undoToast__button:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
 }

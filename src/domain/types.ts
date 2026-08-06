@@ -84,3 +84,4 @@ export const MIN_CREATE_DRAG_DISTANCE = 6;
 export const MAX_NOTE_TEXT_LENGTH = 5000;
 export const STORAGE_KEY = "sticky-notes-ts:document";
 export const STORAGE_DEBOUNCE_MS = 300;
+export const UNDO_TIMEOUT_MS = 5000;

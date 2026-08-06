@@ -7,7 +7,8 @@ export type NotesAction =
   | { type: "noteRectCommitted"; noteId: NoteId; rect: NoteRect }
   | { type: "noteTextChanged"; noteId: NoteId; text: string }
   | { type: "noteBroughtToFront"; noteId: NoteId }
-  | { type: "noteRemoved"; noteId: NoteId };
+  | { type: "noteRemoved"; noteId: NoteId }
+  | { type: "noteRestored"; note: Note; index: number };
 
 export const initialNotesState: NotesState = { notes: [] };
 
@@ -72,6 +73,14 @@ export function notesReducer(
     case "noteRemoved": {
       if (!state.notes.some((note) => note.id === action.noteId)) return state;
       return { notes: state.notes.filter((note) => note.id !== action.noteId) };
+    }
+
+    case "noteRestored": {
+      if (state.notes.some((note) => note.id === action.note.id)) return state;
+      const index = Math.max(0, Math.min(action.index, state.notes.length));
+      const notes = state.notes.slice();
+      notes.splice(index, 0, action.note);
+      return { notes };
     }
 
     default:

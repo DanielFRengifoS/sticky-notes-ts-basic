@@ -4,14 +4,13 @@ A small desktop sticky-notes board built with React and TypeScript. You drag to 
 
 ![Sticky Notes board with several overlapping notes, the toolbar, and the trash zone](docs/screenshot.png)
 
-> The screenshot lives at `docs/screenshot.png`. If it isn't showing yet, drop a capture there (a few overlapping notes, the toolbar, and the trash zone).
-
 ## What's implemented
 
 - Drag on an empty board to create a note at the position and size you draw.
 - Drag a note's header to move it.
 - Drag the bottom-right handle to resize.
 - Release the pointer while it's over the trash to delete a note.
+- Undo the last deletion from a brief toast that appears after you throw a note away.
 - Edit note text (plain text, controlled `<textarea>`).
 - Bring a note to the front by interacting with it.
 - Save and restore notes from local storage, with a versioned payload.
@@ -24,8 +23,9 @@ A small desktop sticky-notes board built with React and TypeScript. You drag to 
 3. Drag a note by its header (the strip along the top) to move it.
 4. Drag the small handle in the bottom-right corner to resize.
 5. To delete, pick a note up by its header and let go while the cursor is over the trash zone. The trash changes its label when you're actually over it, and it's the cursor position that counts, not whether the note overlaps.
-6. Click into a note and type to edit it. Touching a note also selects it and brings it to the front.
-7. Press `Escape` at any point to cancel the current drag, or to turn create mode back off.
+6. Changed your mind? When you delete a note, a small "Note deleted / Undo" toast appears for about five seconds. Click **Undo** to bring that exact note back, same text, same size, same spot, and same stacking position.
+7. Click into a note and type to edit it. Touching a note also selects it and brings it to the front.
+8. Press `Escape` at any point to cancel the current drag, or to turn create mode back off.
 
 Your notes are saved automatically a moment after you stop making changes, and they come back on reload.
 
@@ -54,7 +54,7 @@ I built and ran this with **Node v20.20.2** and **npm 10.8.2** on macOS. The `en
 
 ## Architecture
 
-The app keeps a firm line between committed data and the moment-to-moment noise of a drag. The notes themselves live in a small pure reducer ([`src/domain/notesReducer.ts`](src/domain/notesReducer.ts)) as an ordered array, and that array order _is_ the stacking order, so the last note in the list is the one on top. Every action returns the same state object when nothing actually changed and preserves the object references of notes it didn't touch, which is what lets `React.memo` on the note cards do its job. All positions are measured against a single element, the borderless, padding-free `boardSurface`, and that one element is the only coordinate space used for pointer math, previews, trash hit-testing, CSS positioning, and the rectangles I persist.
+The app keeps a firm line between committed data and the moment-to-moment noise of a drag. The notes themselves live in a small pure reducer ([`src/domain/notesReducer.ts`](src/domain/notesReducer.ts)) as an ordered array, and that array order _is_ the stacking order, so the last note in the list is the one on top. Every action returns the same state object when nothing actually changed and preserves the object references of notes it didn't touch, which is what lets `React.memo` on the note cards do its job. All positions are measured against a single element, the borderless, padding-free `boardSurface`, and that one element is the only coordinate space used for pointer math, previews, trash hit-testing, CSS positioning, and the rectangles I persist. Deletion is a small example of the committed-vs-ephemeral split: the removed note and its old index sit briefly in the board's ephemeral state to back the undo toast, while the actual restore is one pure reducer action that splices the note back into its original stacking slot.
 
 Gestures use the Pointer Events API with pointer capture, so a drag keeps working even when the cursor leaves the note or slips outside the window. The raw pointer position is written to a mutable ref rather than React state; a single `requestAnimationFrame` turns that into at most one preview update per frame, and only the note being dragged gets new preview props. The detail I care most about is that the committed geometry is computed from the `pointerup` event itself, never from the last rendered frame (which can be a frame behind). Commit and cancel are deliberately separate paths, `Escape`, `pointercancel`, and lost capture all cancel without ever committing, and the gesture is cleared _before_ pointer capture is released so the trailing `lostpointercapture` event is a harmless no-op. That logic lives in [`src/features/board/useBoardGestures.ts`](src/features/board/useBoardGestures.ts).
 
@@ -87,7 +87,8 @@ I did **not** have Edge available to test by hand. It's a target and uses the sa
 
 - Desktop-only by design; no touch/mobile-specific handling.
 - Notes aren't repositioned live if the viewport changes after hydration, they're only clamped on the next commit.
-- No note colors, no REST API, no undo/redo, and no keyboard-driven move/resize.
+- Undo covers only the single most recent deletion (a roughly five-second window, and it isn't persisted across reloads); there's no general undo/redo history.
+- No note colors, no REST API, and no keyboard-driven move/resize.
 - Edge is targeted but hasn't been manually verified.
 
 ## Time spent

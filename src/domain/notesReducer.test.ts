@@ -100,4 +100,59 @@ describe("notesReducer", () => {
     expect(removed.notes[0]).toBe(b);
     expect(removed.notes[1]).toBe(a);
   });
+
+  it("restores a deleted note to its previous stacking slot and preserves references", () => {
+    const a = makeNote("a");
+    const b = makeNote("b", "keep", { x: 40, y: 50, width: 200, height: 150 });
+    const c = makeNote("c");
+    const state: NotesState = { notes: [a, b, c] };
+
+    const removed = notesReducer(state, { type: "noteRemoved", noteId: "b" });
+    expect(removed.notes.map((note) => note.id)).toEqual(["a", "c"]);
+
+    const restored = notesReducer(removed, {
+      type: "noteRestored",
+      note: b,
+      index: 1,
+    });
+    expect(restored.notes.map((note) => note.id)).toEqual(["a", "b", "c"]);
+    expect(restored.notes[1]).toBe(b);
+    expect(restored.notes[1]?.text).toBe("keep");
+    expect(restored.notes[1]?.rect).toEqual({
+      x: 40,
+      y: 50,
+      width: 200,
+      height: 150,
+    });
+    expect(restored.notes[0]).toBe(a);
+    expect(restored.notes[2]).toBe(c);
+  });
+
+  it("restores at the front and clamped back, and treats a duplicate id as a no-op", () => {
+    const a = makeNote("a");
+    const b = makeNote("b");
+    const state: NotesState = { notes: [a, b] };
+    const x = makeNote("x");
+
+    expect(
+      notesReducer(state, { type: "noteRestored", note: x, index: 0 }).notes.map(
+        (note) => note.id,
+      ),
+    ).toEqual(["x", "a", "b"]);
+
+    expect(
+      notesReducer(state, {
+        type: "noteRestored",
+        note: x,
+        index: 99,
+      }).notes.map((note) => note.id),
+    ).toEqual(["a", "b", "x"]);
+
+    const duplicate = notesReducer(state, {
+      type: "noteRestored",
+      note: makeNote("a", "other"),
+      index: 0,
+    });
+    expect(duplicate).toBe(state);
+  });
 });
