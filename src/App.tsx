@@ -6,7 +6,7 @@ export function App() {
     <div className="app">
       <header className="app__header">
         <h1>Sticky Notes</h1>
-        <p>A desktop sticky-notes board.</p>
+        <p>Jot it, drag it, make it stick.</p>
       </header>
 
       <Board />
