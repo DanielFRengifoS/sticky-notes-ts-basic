@@ -2,6 +2,11 @@
   display: grid;
   min-height: 100vh;
   grid-template-rows: auto 1fr;
+  overflow-x: hidden;
+}
+
+.app > .board {
+  min-height: 0;
 }
 
 .app__header {
