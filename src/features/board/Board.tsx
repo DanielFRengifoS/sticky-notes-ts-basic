@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { initialNotesState, notesReducer } from '../../domain/notesReducer';
 import { normalizeRectToBoard } from '../../domain/geometry';
-import { loadNotes, saveNotes } from '../../infrastructure/notesStorage';
+import { loadNotes, saveNotes, shouldPersist } from '../../infrastructure/notesStorage';
 import type { BoardPhase, BoardTool, NoteId, NoteRect, Size } from '../../domain/types';
 import { STORAGE_DEBOUNCE_MS } from '../../domain/types';
 import { NoteCard } from './NoteCard';
@@ -50,7 +50,7 @@ export function Board() {
   }, []);
 
   useEffect(() => {
-    if (phase !== 'ready') return;
+    if (!shouldPersist(phase)) return;
     const timer = window.setTimeout(() => {
       saveNotes(window.localStorage, state.notes);
     }, STORAGE_DEBOUNCE_MS);

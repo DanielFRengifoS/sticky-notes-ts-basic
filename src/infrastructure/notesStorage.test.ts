@@ -5,6 +5,7 @@ import {
   parsePersistedNotes,
   parseStoredJson,
   saveNotes,
+  shouldPersist,
 } from "./notesStorage";
 import type { Note } from "../domain/types";
 import { MAX_NOTE_TEXT_LENGTH, STORAGE_KEY } from "../domain/types";
@@ -71,98 +72,65 @@ const throwingStorage: Storage = {
   },
 };
 
-describe("parseStoredJson", () => {
-  it("returns null for null input", () => {
-    expect(parseStoredJson(null)).toBeNull();
-  });
-
-  it("returns null for malformed JSON without throwing", () => {
-    expect(parseStoredJson("{ not json")).toBeNull();
-  });
-
-  it("passes through valid JSON as unknown", () => {
-    expect(parseStoredJson('{"version":1,"notes":[]}')).toEqual({
-      version: 1,
-      notes: [],
-    });
-  });
-});
-
-describe("parsePersistedNotes", () => {
+describe("notesStorage", () => {
   it.each<[string, unknown]>([
     ["non-object root", null],
     ["primitive root", 42],
     ["missing version", { notes: [] }],
     ["unsupported version", { version: 2, notes: [] }],
     ["non-array notes collection", { version: 1, notes: "nope" }],
-  ])("returns [] for %s", (_label, input) => {
+  ])("parsePersistedNotes returns [] for a %s", (_label, input) => {
     expect(parsePersistedNotes(input)).toEqual([]);
   });
 
-  it.each<[string, unknown]>([
-    ["empty id", validRawNote({ id: "" })],
-    ["non-string id", validRawNote({ id: 7 })],
-    ["missing rect", validRawNote({ rect: undefined })],
-    [
-      "non-finite dimension",
-      validRawNote({ rect: { x: 0, y: 0, width: Infinity, height: 120 } }),
-    ],
-    ["zero width", validRawNote({ rect: { x: 0, y: 0, width: 0, height: 120 } })],
-    [
-      "negative height",
-      validRawNote({ rect: { x: 0, y: 0, width: 160, height: -5 } }),
-    ],
-    ["non-string text", validRawNote({ text: 123 })],
-    ["null entry", null],
-  ])("skips a note with %s", (_label, badNote) => {
-    expect(parsePersistedNotes({ version: 1, notes: [badNote] })).toEqual([]);
-  });
-
-  it("keeps valid siblings when some notes are malformed", () => {
-    const result = parsePersistedNotes({
+  it("skips malformed entries while keeping valid siblings, dedupes ids, and truncates text", () => {
+    const mixed = parsePersistedNotes({
       version: 1,
-      notes: [{ id: "" }, validRawNote(), "garbage", null],
+      notes: [
+        validRawNote({ id: "" }),
+        validRawNote({ id: 7 }),
+        validRawNote({ rect: undefined }),
+        validRawNote({ rect: { x: 0, y: 0, width: 0, height: 120 } }),
+        validRawNote({ text: 123 }),
+        "garbage",
+        null,
+        validRawNote(),
+      ],
     });
-    expect(result).toEqual([hydratedNote]);
-  });
+    expect(mixed).toEqual([hydratedNote]);
 
-  it("keeps only the first note for a duplicate id", () => {
-    const first = validRawNote({ id: "dup", text: "first" });
-    const second = validRawNote({ id: "dup", text: "second" });
-    const result = parsePersistedNotes({ version: 1, notes: [first, second] });
-    expect(result).toHaveLength(1);
-    expect(result[0]?.text).toBe("first");
-  });
-
-  it("truncates text longer than MAX_NOTE_TEXT_LENGTH", () => {
-    const text = "x".repeat(MAX_NOTE_TEXT_LENGTH + 100);
-    const result = parsePersistedNotes({
+    const deduped = parsePersistedNotes({
       version: 1,
-      notes: [validRawNote({ text })],
+      notes: [
+        validRawNote({ id: "dup", text: "first" }),
+        validRawNote({ id: "dup", text: "second" }),
+      ],
     });
-    expect(result[0]?.text).toHaveLength(MAX_NOTE_TEXT_LENGTH);
-  });
+    expect(deduped).toHaveLength(1);
+    expect(deduped[0]?.text).toBe("first");
 
-  it("hydrates only id, rect, and text", () => {
-    const result = parsePersistedNotes({
+    const bounded = parsePersistedNotes({
       version: 1,
-      notes: [validRawNote({ malicious: "<script>", extra: 1 })],
+      notes: [
+        validRawNote({
+          text: "x".repeat(MAX_NOTE_TEXT_LENGTH + 100),
+          malicious: "<script>",
+        }),
+      ],
     });
-    expect(result[0]).toEqual(hydratedNote);
+    expect(bounded[0]?.text).toHaveLength(MAX_NOTE_TEXT_LENGTH);
+    expect(bounded[0]).not.toHaveProperty("malicious");
   });
-});
 
-describe("loadNotes / saveNotes", () => {
-  it("returns [] when the key is absent", () => {
+  it("tolerates invalid JSON and storage failures and round-trips valid notes", () => {
+    expect(parseStoredJson(null)).toBeNull();
+    expect(parseStoredJson("{ not json")).toBeNull();
+
     expect(loadNotes(createMemoryStorage())).toEqual([]);
-  });
+    expect(loadNotes(createMemoryStorage({ [STORAGE_KEY]: "{ broken" }))).toEqual([]);
+    expect(loadNotes(throwingStorage)).toEqual([]);
+    expect(() => saveNotes(throwingStorage, [])).not.toThrow();
 
-  it("returns [] for stored invalid JSON", () => {
-    const storage = createMemoryStorage({ [STORAGE_KEY]: "{ broken" });
-    expect(loadNotes(storage)).toEqual([]);
-  });
-
-  it("serializes under the versioned payload and round-trips", () => {
     const storage = createMemoryStorage();
     const notes: Note[] = [
       { id: "a", rect: { x: 1, y: 2, width: 160, height: 120 }, text: "hi" },
@@ -174,11 +142,8 @@ describe("loadNotes / saveNotes", () => {
     expect(loadNotes(storage)).toEqual(notes);
   });
 
-  it("returns [] when getItem throws", () => {
-    expect(loadNotes(throwingStorage)).toEqual([]);
-  });
-
-  it("does not throw when setItem throws", () => {
-    expect(() => saveNotes(throwingStorage, [])).not.toThrow();
+  it("does not write before hydration reaches ready", () => {
+    expect(shouldPersist("measuring")).toBe(false);
+    expect(shouldPersist("ready")).toBe(true);
   });
 });

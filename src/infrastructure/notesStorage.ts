@@ -1,4 +1,4 @@
-import type { Note, NoteId, NoteRect } from "../domain/types";
+import type { BoardPhase, Note, NoteId, NoteRect } from "../domain/types";
 import { MAX_NOTE_TEXT_LENGTH, STORAGE_KEY } from "../domain/types";
 
 interface PersistedNotesV1 {
@@ -87,4 +87,8 @@ export function saveNotes(storage: Storage, notes: Note[]): void {
   } catch {
     // Ignore write failures to keep the app operational.
   }
+}
+
+export function shouldPersist(phase: BoardPhase): boolean {
+  return phase === "ready";
 }
