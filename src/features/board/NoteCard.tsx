@@ -43,12 +43,7 @@ function NoteCardComponent({
       <div
         className="noteHeader"
         onPointerDown={(event) => onHeaderPointerDown(note.id, event)}
-      >
-        <span
-          className="noteHeader__controls"
-          onPointerDown={(event) => event.stopPropagation()}
-        />
-      </div>
+      />
 
       <textarea
         ref={editorRef}

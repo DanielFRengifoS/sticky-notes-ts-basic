@@ -164,12 +164,6 @@
   touch-action: none;
 }
 
-.noteHeader__controls {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
 .noteEditor {
   flex: 1 1 auto;
   width: 100%;

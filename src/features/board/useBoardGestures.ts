@@ -61,7 +61,6 @@ export interface BoardGesturesResult {
   creationPreview: NoteRect | null;
   trashActive: boolean;
   gestureActive: boolean;
-  cancelActiveGesture: (reason: GestureCancelReason) => void;
 }
 
 const IDLE_GESTURE: Gesture = { type: 'idle' };
@@ -456,6 +455,5 @@ export function useBoardGestures(
     creationPreview,
     trashActive,
     gestureActive,
-    cancelActiveGesture,
   };
 }
