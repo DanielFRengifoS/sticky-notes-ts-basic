@@ -10,26 +10,34 @@ import {
   clientPointToBoardPoint,
   createRectFromDrag,
   hasReachedCreateThreshold,
-  isPointerOverTrash,
+  isPointStrictlyInsideRectangle,
   moveRect,
   resizeRect,
 } from '../../domain/geometry';
 import type {
   ActiveNotePreview,
   BoardBounds,
+  BoardPoint,
   BoardTool,
   ClientPoint,
   Gesture,
   NoteId,
   NoteRect,
-  Size,
 } from '../../domain/types';
 
-export type GestureCancelReason =
-  | 'pointer-cancelled'
-  | 'capture-lost'
-  | 'escape'
-  | 'unmount';
+type CancelReason = 'cancel' | 'unmount';
+
+interface PreviewFrame {
+  activeNote: ActiveNotePreview | null;
+  creation: NoteRect | null;
+  trashActive: boolean;
+}
+
+const idlePreview: PreviewFrame = {
+  activeNote: null,
+  creation: null,
+  trashActive: false,
+};
 
 export interface BoardGesturesParams {
   boardSurfaceRef: RefObject<HTMLDivElement | null>;
@@ -42,28 +50,6 @@ export interface BoardGesturesParams {
   onRemoveNote: (noteId: NoteId) => void;
   onDisarmCreateTool: () => void;
 }
-
-export interface BoardGesturesResult {
-  onBoardPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
-  onHeaderPointerDown: (
-    noteId: NoteId,
-    event: PointerEvent<HTMLDivElement>,
-  ) => void;
-  onResizePointerDown: (
-    noteId: NoteId,
-    event: PointerEvent<HTMLDivElement>,
-  ) => void;
-  onBoardPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
-  onBoardPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
-  onBoardPointerCancel: (event: PointerEvent<HTMLDivElement>) => void;
-  onBoardLostPointerCapture: (event: PointerEvent<HTMLDivElement>) => void;
-  activeNotePreview: ActiveNotePreview | null;
-  creationPreview: NoteRect | null;
-  trashActive: boolean;
-  gestureActive: boolean;
-}
-
-const IDLE_GESTURE: Gesture = { type: 'idle' };
 
 function isPrimaryLeftButton(event: PointerEvent<HTMLDivElement>): boolean {
   return event.isPrimary && event.button === 0;
@@ -92,47 +78,36 @@ function readTrashRect(
   return { x: topLeft.x, y: topLeft.y, width: rect.width, height: rect.height };
 }
 
-function boundsToSize(bounds: BoardBounds): Size {
-  return { width: bounds.width, height: bounds.height };
-}
-
-export function useBoardGestures(
-  params: BoardGesturesParams,
-): BoardGesturesResult {
+export function useBoardGestures(params: BoardGesturesParams) {
   const paramsRef = useRef(params);
   paramsRef.current = params;
 
-  const gestureRef = useRef<Gesture>(IDLE_GESTURE);
+  const gestureRef = useRef<Gesture>({ type: 'idle' });
   const captureTargetRef = useRef<HTMLElement | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  const [activeNotePreview, setActiveNotePreview] =
-    useState<ActiveNotePreview | null>(null);
-  const [creationPreview, setCreationPreview] = useState<NoteRect | null>(null);
-  const [trashActive, setTrashActive] = useState(false);
+  const [preview, setPreview] = useState<PreviewFrame>(idlePreview);
   const [gestureActive, setGestureActive] = useState(false);
 
-  const cancelPendingFrame = useCallback(() => {
+  function cancelPendingFrame() {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
-  }, []);
+  }
 
-  const clearPreviewState = useCallback(() => {
-    setActiveNotePreview(null);
-    setCreationPreview(null);
-    setTrashActive(false);
+  function clearPreviewState() {
+    setPreview(idlePreview);
     setGestureActive(false);
-  }, []);
+  }
 
-  const releaseCaptureIfHeld = useCallback((pointerId: number) => {
+  function releaseCaptureIfHeld(pointerId: number) {
     const target = captureTargetRef.current;
     if (target !== null && target.hasPointerCapture(pointerId)) {
       target.releasePointerCapture(pointerId);
     }
     captureTargetRef.current = null;
-  }, []);
+  }
 
   const runFrame = useCallback(() => {
     rafRef.current = null;
@@ -147,16 +122,18 @@ export function useBoardGestures(
             gesture.latestPointer,
           )
         ) {
-          setCreationPreview(null);
+          setPreview(idlePreview);
           return;
         }
-        setCreationPreview(
-          createRectFromDrag(
+        setPreview({
+          activeNote: null,
+          creation: createRectFromDrag(
             gesture.pointerOrigin,
             gesture.latestPointer,
-            boundsToSize(gesture.boardBounds),
+            gesture.boardBounds,
           ),
-        );
+          trashActive: false,
+        });
         return;
       }
       case 'moving': {
@@ -164,12 +141,16 @@ export function useBoardGestures(
           gesture.initialRect,
           gesture.pointerOrigin,
           gesture.latestPointer,
-          boundsToSize(gesture.boardBounds),
+          gesture.boardBounds,
         );
-        setActiveNotePreview({ noteId: gesture.noteId, rect });
-        setTrashActive(
-          isPointerOverTrash(gesture.latestPointer, gesture.trashRect),
-        );
+        setPreview({
+          activeNote: { noteId: gesture.noteId, rect },
+          creation: null,
+          trashActive: isPointStrictlyInsideRectangle(
+            gesture.latestPointer,
+            gesture.trashRect,
+          ),
+        });
         return;
       }
       case 'resizing': {
@@ -177,9 +158,13 @@ export function useBoardGestures(
           gesture.initialRect,
           gesture.pointerOrigin,
           gesture.latestPointer,
-          boundsToSize(gesture.boardBounds),
+          gesture.boardBounds,
         );
-        setActiveNotePreview({ noteId: gesture.noteId, rect });
+        setPreview({
+          activeNote: { noteId: gesture.noteId, rect },
+          creation: null,
+          trashActive: false,
+        });
         return;
       }
     }
@@ -196,12 +181,14 @@ export function useBoardGestures(
       if (gesture.type === 'idle') return;
       if (gesture.pointerId !== pointerId) return;
 
+      // Final geometry comes from the release event, not the preview, which can be a frame behind.
       const releaseBoardPoint = clientPointToBoardPoint(
         releasePoint,
         gesture.boardBounds,
       );
       const active = gesture;
-      gestureRef.current = IDLE_GESTURE;
+      // Going idle before releasing capture makes the resulting lostpointercapture a no-op.
+      gestureRef.current = { type: 'idle' };
       cancelPendingFrame();
 
       switch (active.type) {
@@ -213,14 +200,14 @@ export function useBoardGestures(
               createRectFromDrag(
                 active.pointerOrigin,
                 releaseBoardPoint,
-                boundsToSize(active.boardBounds),
+                active.boardBounds,
               ),
             );
           }
           break;
         }
         case 'moving': {
-          if (isPointerOverTrash(releaseBoardPoint, active.trashRect)) {
+          if (isPointStrictlyInsideRectangle(releaseBoardPoint, active.trashRect)) {
             paramsRef.current.onRemoveNote(active.noteId);
             break;
           }
@@ -228,7 +215,7 @@ export function useBoardGestures(
             active.initialRect,
             active.pointerOrigin,
             releaseBoardPoint,
-            boundsToSize(active.boardBounds),
+            active.boardBounds,
           );
           paramsRef.current.onCommitRect(active.noteId, rect);
           break;
@@ -238,7 +225,7 @@ export function useBoardGestures(
             active.initialRect,
             active.pointerOrigin,
             releaseBoardPoint,
-            boundsToSize(active.boardBounds),
+            active.boardBounds,
           );
           paramsRef.current.onCommitRect(active.noteId, rect);
           break;
@@ -248,15 +235,15 @@ export function useBoardGestures(
       clearPreviewState();
       releaseCaptureIfHeld(pointerId);
     },
-    [cancelPendingFrame, clearPreviewState, releaseCaptureIfHeld],
+    [],
   );
 
   const cancelActiveGesture = useCallback(
-    (reason: GestureCancelReason) => {
+    (reason: CancelReason) => {
       const gesture = gestureRef.current;
       const capturedPointerId =
         gesture.type === 'idle' ? null : gesture.pointerId;
-      gestureRef.current = IDLE_GESTURE;
+      gestureRef.current = { type: 'idle' };
       cancelPendingFrame();
 
       if (reason === 'unmount') {
@@ -271,75 +258,82 @@ export function useBoardGestures(
         captureTargetRef.current = null;
       }
     },
-    [cancelPendingFrame, clearPreviewState, releaseCaptureIfHeld],
+    [],
   );
+
+  function beginNoteGesture(
+    noteId: NoteId,
+    event: PointerEvent<HTMLDivElement>,
+    buildGesture: (start: {
+      pointerOrigin: BoardPoint;
+      initialRect: NoteRect;
+      boardBounds: BoardBounds;
+    }) => Gesture,
+  ) {
+    if (!isPrimaryLeftButton(event)) return;
+    if (gestureRef.current.type !== 'idle') return;
+    const boardSurface = paramsRef.current.boardSurfaceRef.current;
+    if (boardSurface === null) return;
+    const initialRect = paramsRef.current.getNoteRect(noteId);
+    if (initialRect === undefined) return;
+
+    event.stopPropagation();
+    paramsRef.current.onInteractionStart(noteId);
+
+    // Measured once here: the board cannot move mid-gesture, and layout reads per move would thrash.
+    const boardBounds = readBoardBounds(boardSurface);
+    const pointerOrigin = clientPointToBoardPoint(
+      { clientX: event.clientX, clientY: event.clientY },
+      boardBounds,
+    );
+    gestureRef.current = buildGesture({
+      pointerOrigin,
+      initialRect,
+      boardBounds,
+    });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    captureTargetRef.current = event.currentTarget;
+    setGestureActive(true);
+  }
 
   const onHeaderPointerDown = useCallback(
     (noteId: NoteId, event: PointerEvent<HTMLDivElement>) => {
-      if (!isPrimaryLeftButton(event)) return;
-      if (gestureRef.current.type !== 'idle') return;
-      const boardSurface = paramsRef.current.boardSurfaceRef.current;
-      if (boardSurface === null) return;
-      const initialRect = paramsRef.current.getNoteRect(noteId);
-      if (initialRect === undefined) return;
-
-      event.stopPropagation();
-      paramsRef.current.onInteractionStart(noteId);
-
-      const boardBounds = readBoardBounds(boardSurface);
-      const pointerOrigin = clientPointToBoardPoint(
-        { clientX: event.clientX, clientY: event.clientY },
-        boardBounds,
-      );
-      gestureRef.current = {
-        type: 'moving',
-        pointerId: event.pointerId,
+      beginNoteGesture(
         noteId,
-        pointerOrigin,
-        latestPointer: pointerOrigin,
-        initialRect,
-        boardBounds,
-        trashRect: readTrashRect(
-          paramsRef.current.trashRef.current,
+        event,
+        ({ pointerOrigin, initialRect, boardBounds }) => ({
+          type: 'moving',
+          pointerId: event.pointerId,
+          noteId,
+          pointerOrigin,
+          latestPointer: pointerOrigin,
+          initialRect,
           boardBounds,
-        ),
-      };
-      event.currentTarget.setPointerCapture(event.pointerId);
-      captureTargetRef.current = event.currentTarget;
-      setGestureActive(true);
+          trashRect: readTrashRect(
+            paramsRef.current.trashRef.current,
+            boardBounds,
+          ),
+        }),
+      );
     },
     [],
   );
 
   const onResizePointerDown = useCallback(
     (noteId: NoteId, event: PointerEvent<HTMLDivElement>) => {
-      if (!isPrimaryLeftButton(event)) return;
-      if (gestureRef.current.type !== 'idle') return;
-      const boardSurface = paramsRef.current.boardSurfaceRef.current;
-      if (boardSurface === null) return;
-      const initialRect = paramsRef.current.getNoteRect(noteId);
-      if (initialRect === undefined) return;
-
-      event.stopPropagation();
-      paramsRef.current.onInteractionStart(noteId);
-
-      const boardBounds = readBoardBounds(boardSurface);
-      const pointerOrigin = clientPointToBoardPoint(
-        { clientX: event.clientX, clientY: event.clientY },
-        boardBounds,
-      );
-      gestureRef.current = {
-        type: 'resizing',
-        pointerId: event.pointerId,
+      beginNoteGesture(
         noteId,
-        pointerOrigin,
-        latestPointer: pointerOrigin,
-        initialRect,
-        boardBounds,
-      };
-      event.currentTarget.setPointerCapture(event.pointerId);
-      captureTargetRef.current = event.currentTarget;
-      setGestureActive(true);
+        event,
+        ({ pointerOrigin, initialRect, boardBounds }) => ({
+          type: 'resizing',
+          pointerId: event.pointerId,
+          noteId,
+          pointerOrigin,
+          latestPointer: pointerOrigin,
+          initialRect,
+          boardBounds,
+        }),
+      );
     },
     [],
   );
@@ -362,7 +356,7 @@ export function useBoardGestures(
         paramsRef.current.trashRef.current,
         boardBounds,
       );
-      if (isPointerOverTrash(pointerOrigin, trashRect)) return;
+      if (isPointStrictlyInsideRectangle(pointerOrigin, trashRect)) return;
       gestureRef.current = {
         type: 'creating',
         pointerId: event.pointerId,
@@ -382,6 +376,7 @@ export function useBoardGestures(
       const gesture = gestureRef.current;
       if (gesture.type === 'idle') return;
       if (event.pointerId !== gesture.pointerId) return;
+      // Raw positions live in the ref so a fast pointer stream costs one React update per frame.
       gesture.latestPointer = clientPointToBoardPoint(
         { clientX: event.clientX, clientY: event.clientY },
         gesture.boardBounds,
@@ -407,7 +402,7 @@ export function useBoardGestures(
       if (gesture.type === 'idle' || gesture.pointerId !== event.pointerId) {
         return;
       }
-      cancelActiveGesture('pointer-cancelled');
+      cancelActiveGesture('cancel');
     },
     [cancelActiveGesture],
   );
@@ -418,7 +413,7 @@ export function useBoardGestures(
       if (gesture.type === 'idle' || gesture.pointerId !== event.pointerId) {
         return;
       }
-      cancelActiveGesture('capture-lost');
+      cancelActiveGesture('cancel');
     },
     [cancelActiveGesture],
   );
@@ -427,7 +422,7 @@ export function useBoardGestures(
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (gestureRef.current.type !== 'idle') {
-        cancelActiveGesture('escape');
+        cancelActiveGesture('cancel');
       }
       if (paramsRef.current.tool === 'create') {
         paramsRef.current.onDisarmCreateTool();
@@ -451,9 +446,9 @@ export function useBoardGestures(
     onBoardPointerUp,
     onBoardPointerCancel,
     onBoardLostPointerCapture,
-    activeNotePreview,
-    creationPreview,
-    trashActive,
+    activeNotePreview: preview.activeNote,
+    creationPreview: preview.creation,
+    trashActive: preview.trashActive,
     gestureActive,
   };
 }

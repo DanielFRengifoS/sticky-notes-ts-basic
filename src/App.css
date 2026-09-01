@@ -9,18 +9,18 @@
   min-height: 0;
 }
 
-.app__header {
+.appHeader {
   padding: 1.5rem 2rem;
   border-bottom: 1px solid #d7dce2;
   background: #ffffff;
 }
 
-.app__header h1,
-.app__header p {
+.appHeader h1,
+.appHeader p {
   margin: 0;
 }
 
-.app__header p {
+.appHeader p {
   margin-top: 0.25rem;
   color: #5b6470;
 }

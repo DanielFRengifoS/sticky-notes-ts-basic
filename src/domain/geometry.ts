@@ -4,11 +4,18 @@ import type {
   ClientPoint,
   NoteRect,
   Size,
-} from "./types";
-import { MIN_CREATE_DRAG_DISTANCE, MIN_NOTE_HEIGHT, MIN_NOTE_WIDTH } from "./types";
+} from './types';
+import { MIN_CREATE_DRAG_DISTANCE, MIN_NOTE_HEIGHT, MIN_NOTE_WIDTH } from './types';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function availableSize(boardSize: Size): Size {
+  return {
+    width: Math.max(0, Math.floor(boardSize.width)),
+    height: Math.max(0, Math.floor(boardSize.height)),
+  };
 }
 
 export function clientPointToBoardPoint(
@@ -31,8 +38,7 @@ export function hasReachedCreateThreshold(
 }
 
 export function normalizeRectToBoard(rect: NoteRect, boardSize: Size): NoteRect {
-  const availableWidth = Math.max(0, Math.floor(boardSize.width));
-  const availableHeight = Math.max(0, Math.floor(boardSize.height));
+  const { width: availableWidth, height: availableHeight } = availableSize(boardSize);
   const minWidth = Math.min(MIN_NOTE_WIDTH, availableWidth);
   const minHeight = Math.min(MIN_NOTE_HEIGHT, availableHeight);
   const width = clamp(Math.round(rect.width), minWidth, availableWidth);
@@ -81,8 +87,7 @@ export function resizeRect(
   currentPointer: BoardPoint,
   boardSize: Size,
 ): NoteRect {
-  const availableWidth = Math.max(0, Math.floor(boardSize.width));
-  const availableHeight = Math.max(0, Math.floor(boardSize.height));
+  const { width: availableWidth, height: availableHeight } = availableSize(boardSize);
   const x = clamp(Math.round(initialRect.x), 0, availableWidth);
   const y = clamp(Math.round(initialRect.y), 0, availableHeight);
   const maxWidth = availableWidth - x;
@@ -106,11 +111,4 @@ export function isPointStrictlyInsideRectangle(
     point.y > rect.y &&
     point.y < rect.y + rect.height
   );
-}
-
-export function isPointerOverTrash(
-  pointer: BoardPoint,
-  trashRect: NoteRect,
-): boolean {
-  return isPointStrictlyInsideRectangle(pointer, trashRect);
 }

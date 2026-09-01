@@ -5,34 +5,34 @@ interface NoteCardProps {
   note: Note;
   previewRect?: NoteRect | undefined;
   selected: boolean;
-  pendingFocus: boolean;
+  shouldFocus: boolean;
   onTextChange: (noteId: NoteId, text: string) => void;
   onNoteInteraction: (noteId: NoteId) => void;
   onHeaderPointerDown: (noteId: NoteId, event: PointerEvent<HTMLDivElement>) => void;
   onResizePointerDown: (noteId: NoteId, event: PointerEvent<HTMLDivElement>) => void;
-  onFocusRequestConsumed: (noteId: NoteId) => void;
+  onFocused: (noteId: NoteId) => void;
 }
 
 function NoteCardComponent({
   note,
   previewRect,
   selected,
-  pendingFocus,
+  shouldFocus,
   onTextChange,
   onNoteInteraction,
   onHeaderPointerDown,
   onResizePointerDown,
-  onFocusRequestConsumed,
+  onFocused,
 }: NoteCardProps) {
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
   const rect = previewRect ?? note.rect;
 
   useLayoutEffect(() => {
-    if (!pendingFocus) return;
+    if (!shouldFocus) return;
     editorRef.current?.focus();
-    onFocusRequestConsumed(note.id);
-  }, [pendingFocus, note.id, onFocusRequestConsumed]);
+    onFocused(note.id);
+  }, [shouldFocus, note.id, onFocused]);
 
   return (
     <div

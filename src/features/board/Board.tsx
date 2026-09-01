@@ -9,9 +9,9 @@ import {
 } from 'react';
 import { initialNotesState, notesReducer } from '../../domain/notesReducer';
 import { normalizeRectToBoard } from '../../domain/geometry';
-import { loadNotes, saveNotes, shouldPersist } from '../../infrastructure/notesStorage';
-import type { BoardPhase, BoardTool, Note, NoteId, NoteRect, Size } from '../../domain/types';
-import { STORAGE_DEBOUNCE_MS, UNDO_TIMEOUT_MS } from '../../domain/types';
+import { loadNotes, saveNotes } from '../../infrastructure/notesStorage';
+import type { BoardPhase, BoardTool, NoteId, NoteRect, Size } from '../../domain/types';
+import { STORAGE_DEBOUNCE_MS } from '../../domain/types';
 import { NoteCard } from './NoteCard';
 import { useBoardGestures } from './useBoardGestures';
 import './Board.css';
@@ -20,17 +20,13 @@ export function Board() {
   const [state, dispatch] = useReducer(notesReducer, initialNotesState);
   const [phase, setPhase] = useState<BoardPhase>('measuring');
   const [selectedId, setSelectedId] = useState<NoteId | null>(null);
-  const [pendingFocusId, setPendingFocusId] = useState<NoteId | null>(null);
+  const [focusNoteId, setFocusNoteId] = useState<NoteId | null>(null);
   const [tool, setTool] = useState<BoardTool>('select');
-  const [pendingUndo, setPendingUndo] = useState<{ note: Note; index: number } | null>(null);
 
   const boardSurfaceRef = useRef<HTMLDivElement>(null);
   const trashRef = useRef<HTMLDivElement>(null);
 
   const hydratedRef = useRef(false);
-
-  const notesRef = useRef(state.notes);
-  notesRef.current = state.notes;
 
   useLayoutEffect(() => {
     if (hydratedRef.current) return;
@@ -51,24 +47,17 @@ export function Board() {
   }, []);
 
   useEffect(() => {
-    if (!shouldPersist(phase)) return;
+    // Gated on hydration so the initial empty state, doubled under StrictMode, cannot overwrite saved notes.
+    if (phase !== 'ready') return;
     const timer = window.setTimeout(() => {
       saveNotes(window.localStorage, state.notes);
     }, STORAGE_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [phase, state.notes]);
 
-  useEffect(() => {
-    if (pendingUndo === null) return;
-    const timer = window.setTimeout(() => setPendingUndo(null), UNDO_TIMEOUT_MS);
-    return () => window.clearTimeout(timer);
-  }, [pendingUndo]);
-
-  const getNoteRect = useCallback(
-    (noteId: NoteId): NoteRect | undefined =>
-      notesRef.current.find((note) => note.id === noteId)?.rect,
-    [],
-  );
+  function getNoteRect(noteId: NoteId): NoteRect | undefined {
+    return state.notes.find((note) => note.id === noteId)?.rect;
+  }
 
   const handleTextChange = useCallback((noteId: NoteId, text: string) => {
     dispatch({ type: 'noteTextChanged', noteId, text });
@@ -87,42 +76,26 @@ export function Board() {
     const id = crypto.randomUUID();
     dispatch({ type: 'noteAdded', note: { id, rect, text: '' } });
     setSelectedId(id);
-    setPendingFocusId(id);
+    setFocusNoteId(id);
     setTool('select');
   }, []);
 
-  const handleToggleCreate = useCallback(() => {
+  function handleToggleCreate() {
     setTool((current) => (current === 'create' ? 'select' : 'create'));
-  }, []);
+  }
 
-  const handleDisarmCreateTool = useCallback(() => {
+  function handleDisarmCreateTool() {
     setTool('select');
-  }, []);
+  }
 
   const handleRemoveNote = useCallback((noteId: NoteId) => {
-    const index = notesRef.current.findIndex((note) => note.id === noteId);
-    const removed = index === -1 ? undefined : notesRef.current[index];
     dispatch({ type: 'noteRemoved', noteId });
     setSelectedId((current) => (current === noteId ? null : current));
-    setPendingFocusId((current) => (current === noteId ? null : current));
-    if (removed !== undefined) {
-      setPendingUndo({ note: removed, index });
-    }
+    setFocusNoteId((current) => (current === noteId ? null : current));
   }, []);
 
-  const handleUndoDelete = useCallback(() => {
-    if (pendingUndo === null) return;
-    dispatch({
-      type: 'noteRestored',
-      note: pendingUndo.note,
-      index: pendingUndo.index,
-    });
-    setSelectedId(pendingUndo.note.id);
-    setPendingUndo(null);
-  }, [pendingUndo]);
-
-  const handleFocusRequestConsumed = useCallback((noteId: NoteId) => {
-    setPendingFocusId((prev) => (prev === noteId ? null : prev));
+  const handleNoteFocused = useCallback((noteId: NoteId) => {
+    setFocusNoteId((prev) => (prev === noteId ? null : prev));
   }, []);
 
   const {
@@ -170,7 +143,7 @@ export function Board() {
       <div className="toolbar">
         <button
           type="button"
-          className="toolbar__button"
+          className="toolbarButton"
           aria-pressed={tool === 'create'}
           onClick={handleToggleCreate}
         >
@@ -190,14 +163,15 @@ export function Board() {
           onPointerCancel={onBoardPointerCancel}
           onLostPointerCapture={onBoardLostPointerCapture}
         >
-          {phase === 'ready' && state.notes.length === 0 ? (
-            <p className="emptyState">
-              Select &ldquo;New note&rdquo;, then drag on the board to create a note.
-            </p>
-          ) : null}
+          {phase === 'ready' ? (
+            <>
+              {state.notes.length === 0 ? (
+                <p className="emptyState">
+                  Click "New note", then drag on the board to add one.
+                </p>
+              ) : null}
 
-          {phase === 'ready'
-            ? state.notes.map((note) => (
+              {state.notes.map((note) => (
                 <NoteCard
                   key={note.id}
                   note={note}
@@ -207,15 +181,16 @@ export function Board() {
                       : undefined
                   }
                   selected={selectedId === note.id}
-                  pendingFocus={pendingFocusId === note.id}
+                  shouldFocus={focusNoteId === note.id}
                   onTextChange={handleTextChange}
                   onNoteInteraction={handleNoteInteraction}
                   onHeaderPointerDown={onHeaderPointerDown}
                   onResizePointerDown={onResizePointerDown}
-                  onFocusRequestConsumed={handleFocusRequestConsumed}
+                  onFocused={handleNoteFocused}
                 />
-              ))
-            : null}
+              ))}
+            </>
+          ) : null}
 
           {creationPreview ? (
             <div
@@ -231,31 +206,15 @@ export function Board() {
           ) : null}
 
           <div className="trashZone" ref={trashRef} data-active={trashActive}>
-            <span className="trashZone__icon" aria-hidden="true">
+            <span className="trashIcon" aria-hidden="true">
               🗑
             </span>
-            <span className="trashZone__label">
+            <span className="trashLabel">
               {trashActive ? 'Release to delete' : 'Trash'}
-            </span>
-            <span className="trashZone__hint">
-              Release while the cursor is over the trash.
             </span>
           </div>
         </div>
       </div>
-
-      {pendingUndo ? (
-        <div className="undoToast" role="status">
-          <span className="undoToast__label">Note deleted</span>
-          <button
-            type="button"
-            className="undoToast__button"
-            onClick={handleUndoDelete}
-          >
-            Undo
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

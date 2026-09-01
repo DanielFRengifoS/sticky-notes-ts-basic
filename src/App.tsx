@@ -4,9 +4,9 @@ import './App.css';
 export function App() {
   return (
     <div className="app">
-      <header className="app__header">
+      <header className="appHeader">
         <h1>Sticky Notes</h1>
-        <p>Jot it, drag it, make it stick.</p>
+        <p>Create, edit, move, resize, and delete notes.</p>
       </header>
 
       <Board />

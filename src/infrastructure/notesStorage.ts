@@ -1,17 +1,17 @@
-import type { BoardPhase, Note, NoteId, NoteRect } from "../domain/types";
-import { MAX_NOTE_TEXT_LENGTH, STORAGE_KEY } from "../domain/types";
+import type { Note, NoteId, NoteRect } from '../domain/types';
+import { MAX_NOTE_TEXT_LENGTH, STORAGE_KEY } from '../domain/types';
 
 interface PersistedNotesV1 {
   version: 1;
-  notes: unknown;
+  notes: Note[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === 'object' && value !== null;
 }
 
 function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
+  return typeof value === 'number' && Number.isFinite(value);
 }
 
 function isValidRect(value: unknown): value is NoteRect {
@@ -30,9 +30,9 @@ function parseNote(value: unknown): Note | null {
   if (!isRecord(value)) return null;
 
   const { id, rect, text } = value;
-  if (typeof id !== "string" || id.length === 0) return null;
+  if (typeof id !== 'string' || id.length === 0) return null;
   if (!isValidRect(rect)) return null;
-  if (typeof text !== "string") return null;
+  if (typeof text !== 'string') return null;
 
   const boundedText =
     text.length > MAX_NOTE_TEXT_LENGTH
@@ -46,7 +46,7 @@ function parseNote(value: unknown): Note | null {
   };
 }
 
-export function parseStoredJson(raw: string | null): unknown {
+function parseStoredJson(raw: string | null): unknown {
   if (raw === null) return null;
   try {
     return JSON.parse(raw) as unknown;
@@ -87,8 +87,4 @@ export function saveNotes(storage: Storage, notes: Note[]): void {
   } catch {
     // Ignore write failures to keep the app operational.
   }
-}
-
-export function shouldPersist(phase: BoardPhase): boolean {
-  return phase === "ready";
 }
