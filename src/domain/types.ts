@@ -28,7 +28,6 @@ export interface Note {
   id: NoteId;
   rect: NoteRect;
   text: string;
-  // color?: string; // maybe let people pick a colour per note one day
 }
 
 export interface NotesState {

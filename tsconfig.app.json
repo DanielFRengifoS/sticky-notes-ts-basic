@@ -10,8 +10,6 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    // exactOptionalPropertyTypes was more annoying than helpful here - it kept
-    // tripping on `foo?: T | undefined` props passed undefined. left it off.
     "exactOptionalPropertyTypes": false,
     "useUnknownInCatchVariables": true,
     "noUnusedLocals": true,

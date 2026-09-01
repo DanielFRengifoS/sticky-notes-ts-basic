@@ -25,7 +25,6 @@
 }
 
 .toolbarButton:hover {
-  /* TODO this blue is pasted all over the file, should be a css var */
   border-color: #2463eb;
 }
 
@@ -49,13 +48,6 @@
   border-radius: 0.75rem;
   box-shadow: 0 1px 3px rgba(23, 32, 42, 0.08);
 }
-
-/* first version pinned this to a fixed height, but it looked awful on short
-   windows so it's flex now. leaving this here in case i need to go back.
-.boardFrame {
-  height: 480px;
-}
-*/
 
 .boardSurface {
   position: relative;
@@ -137,7 +129,6 @@
   font-weight: 600;
 }
 
-/* bumped the weight a bit later, easier to just add a rule than find the one above */
 .trashLabel {
   font-weight: 700;
 }
@@ -180,7 +171,6 @@
   border: 0;
   color: #17202a;
   background: transparent;
-  /* safari kept drawing the resize grabber, force it off */
   resize: none !important;
 }
 

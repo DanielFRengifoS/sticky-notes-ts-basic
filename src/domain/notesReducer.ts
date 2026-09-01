@@ -58,7 +58,6 @@ export function notesReducer(
       const target = state.notes.find((note) => note.id === action.noteId);
       if (target === undefined) return state;
       if (state.notes.at(-1) === target) return state;
-      // shove it to the end so it paints last (= on top). array order is z-order.
       return {
         notes: [
           ...state.notes.filter((note) => note.id !== action.noteId),

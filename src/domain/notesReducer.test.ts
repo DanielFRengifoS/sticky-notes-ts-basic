@@ -91,7 +91,6 @@ describe('notesReducer', () => {
     expect(next.notes[0]?.text).toHaveLength(MAX_NOTE_TEXT_LENGTH);
   });
 
-  // pretty much the same as the test above, wrote it while poking at the cap
   it('caps note text length', () => {
     const state: NotesState = { notes: [makeNote('a')] };
     const next = notesReducer(state, {

@@ -60,7 +60,6 @@ export function parsePersistedNotes(value: unknown): Note[] {
   if (value.version !== 1) return [];
   if (!Array.isArray(value.notes)) return [];
 
-  // walk the list, skip anything that isn't a valid note, and drop dupe ids
   const notes: Note[] = [];
   const seenIds = new Set<NoteId>();
   for (const entry of value.notes) {
@@ -86,7 +85,6 @@ export function saveNotes(storage: Storage, notes: Note[]): void {
     const payload: PersistedNotesV1 = { version: 1, notes };
     storage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {
-    // if the write blows up (quota, private mode, whatever) just carry on -
-    // losing one save beats crashing the whole board.
+    return;
   }
 }

@@ -25,9 +25,6 @@ import type {
 
 type CancelReason = 'cancel' | 'unmount';
 
-// The whole gesture lives in a ref rather than react state, so a fast pointer
-// stream doesn't trigger a render on every move. One active at a time, and the
-// pointerId is how we ignore events from a second finger/pointer.
 type Gesture =
   | { type: 'idle' }
   | {
@@ -104,9 +101,6 @@ function readTrashRect(
   trashElement: HTMLElement | null,
   boundries: BoardBounds,
 ): NoteRect {
-  // HACK: if the trash ref isn't mounted yet, hand back an empty rect. a
-  // zero-size rect can't contain any point (pointInside is strict), so the hit
-  // test just reads as "not over the trash". bit gross but it works.
   if (trashElement === null) return { x: 0, y: 0, width: 0, height: 0 };
   const rect = trashElement.getBoundingClientRect();
   const topLeft = toBoardPoint(
@@ -181,7 +175,6 @@ export function useBoardGestures(params: BoardGesturesParams) {
           gesture.latestPointer,
           gesture.boardBounds,
         );
-        // console.log('move preview', rect, gesture.latestPointer);
         setPreview({
           activeNote: { noteId: gesture.noteId, rect },
           creation: null,
@@ -217,13 +210,8 @@ export function useBoardGestures(params: BoardGesturesParams) {
       if (gesture.type === 'idle') return;
       if (gesture.pointerId !== pointerId) return;
 
-      // use the release coords here, not the last preview frame - rAF means the
-      // preview can be a frame behind and we don't want to commit a stale rect.
       const releaseBoardPoint = toBoardPoint(releasePoint, gesture.boardBounds);
       const active = gesture;
-      // go idle *before* we release capture, so the lostpointercapture that
-      // fires next is a no-op. otherwise it would try to cancel the the gesture
-      // we just committed.
       gestureRef.current = { type: 'idle' };
       cancelPendingFrame();
 
@@ -303,9 +291,6 @@ export function useBoardGestures(params: BoardGesturesParams) {
       boardBounds: BoardBounds;
     }) => Gesture,
   ) {
-    // TODO: only handling mouse / primary pointer right now. haven't tested pen
-    // or touch yet, and i think pointer capture behaves a little differently
-    // there. revisit if we ever care about tablets.
     if (!isPrimaryLeftButton(event)) return;
     if (gestureRef.current.type !== 'idle') return;
     const boardSurface = paramsRef.current.boardSurfaceRef.current;
@@ -316,8 +301,6 @@ export function useBoardGestures(params: BoardGesturesParams) {
     event.stopPropagation();
     paramsRef.current.onInteractionStart(noteId);
 
-    // grab the board rect once, up front. it can't move mid-gesture, and
-    // reading layout on every pointermove would thrash.
     const boardBounds = readBoardBounds(boardSurface);
     const pointerOrigin = toBoardPoint(
       { clientX: event.clientX, clientY: event.clientY },
@@ -413,8 +396,6 @@ export function useBoardGestures(params: BoardGesturesParams) {
       const gesture = gestureRef.current;
       if (gesture.type === 'idle') return;
       if (event.pointerId !== gesture.pointerId) return;
-      // stash the raw point on the ref and let rAF actually render it. keeps a
-      // fast pointer stream to ~one react update per frame instead of per event.
       gesture.latestPointer = toBoardPoint(
         { clientX: event.clientX, clientY: event.clientY },
         gesture.boardBounds,

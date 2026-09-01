@@ -44,7 +44,6 @@ describe('geometry', () => {
     );
   });
 
-  // a note should never be bigger than the board it lives on
   it('grows to min size, or the whole board when thats smaller', () => {
     const smallBoard: Size = { width: 100, height: 80 };
     expect(
@@ -87,8 +86,6 @@ describe('geometry', () => {
     ).toEqual({ x: 0, y: 0, width: 160, height: 120 });
   });
 
-  // resize clamps to the min size and the board edge. also sanity checking the
-  // trash hit test in here bc i couldn't be bothered with another block.
   it('resize + hit test edge cases', () => {
     const initial = { x: 100, y: 100, width: 160, height: 120 };
     expect(
@@ -108,7 +105,6 @@ describe('geometry', () => {
       height: 700,
     });
 
-    // edges read as outside, the middle reads as inside
     const trash = { x: 100, y: 100, width: 100, height: 100 };
     expect(pointInside({ x: 100, y: 150 }, trash)).toBe(false);
     expect(pointInside({ x: 200, y: 150 }, trash)).toBe(false);
@@ -123,7 +119,6 @@ describe('geometry', () => {
     expect(rectsOverlap(a, { x: 200, y: 0, width: 10, height: 10 })).toBe(
       false,
     );
-    // just touching edges is not an overlap
     expect(rectsOverlap(a, { x: 100, y: 0, width: 10, height: 10 })).toBe(
       false,
     );

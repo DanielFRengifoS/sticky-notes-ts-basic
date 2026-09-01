@@ -44,7 +44,6 @@ export function Board() {
     const boardSize: Size = { width: rect.width, height: rect.height };
     const stored = loadNotes(window.localStorage);
     console.log('[board] hydrating', stored.length, 'notes');
-    // re-normalise the saved rects against the current board size
     const normalized = stored.map((note) => ({
       ...note,
       rect: clampRect(note.rect, boardSize),
@@ -54,13 +53,8 @@ export function Board() {
   }, []);
 
   useEffect(() => {
-    // don't save until we've hydrated. under StrictMode this effect runs twice
-    // and the first (empty) pass would otherwise stomp the saved notes.
     if (phase !== 'ready') return;
-    // stash on window so i can poke at notes from devtools. remove before ship.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__notes = state.notes;
-    // debounce writes by ~250ms so a drag doesn't hammer localStorage
+    (window as unknown as Record<string, unknown>).__notes = state.notes;
     const timer = window.setTimeout(() => {
       saveNotes(window.localStorage, state.notes);
     }, 300);
@@ -80,7 +74,6 @@ export function Board() {
     dispatch({ type: 'noteRectCommitted', noteId, rect });
   }
 
-  // not memoised - only the gesture hook uses this and it reads params off a ref
   function handleCreateNote(rect: NoteRect) {
     const id = crypto.randomUUID();
     dispatch({ type: 'noteAdded', note: { id, rect, text: '' } });
