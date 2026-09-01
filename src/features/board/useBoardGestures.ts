@@ -7,25 +7,60 @@ import {
   type RefObject,
 } from 'react';
 import {
-  clientPointToBoardPoint,
   createRectFromDrag,
   hasReachedCreateThreshold,
-  isPointStrictlyInsideRectangle,
   moveRect,
+  pointInside,
   resizeRect,
+  toBoardPoint,
 } from '../../domain/geometry';
 import type {
-  ActiveNotePreview,
   BoardBounds,
   BoardPoint,
   BoardTool,
   ClientPoint,
-  Gesture,
   NoteId,
   NoteRect,
 } from '../../domain/types';
 
 type CancelReason = 'cancel' | 'unmount';
+
+// The whole gesture lives in a ref rather than react state, so a fast pointer
+// stream doesn't trigger a render on every move. One active at a time, and the
+// pointerId is how we ignore events from a second finger/pointer.
+type Gesture =
+  | { type: 'idle' }
+  | {
+      type: 'creating';
+      pointerId: number;
+      pointerOrigin: BoardPoint;
+      latestPointer: BoardPoint;
+      boardBounds: BoardBounds;
+    }
+  | {
+      type: 'moving';
+      pointerId: number;
+      noteId: NoteId;
+      pointerOrigin: BoardPoint;
+      latestPointer: BoardPoint;
+      initialRect: NoteRect;
+      boardBounds: BoardBounds;
+      trashRect: NoteRect;
+    }
+  | {
+      type: 'resizing';
+      pointerId: number;
+      noteId: NoteId;
+      pointerOrigin: BoardPoint;
+      latestPointer: BoardPoint;
+      initialRect: NoteRect;
+      boardBounds: BoardBounds;
+    };
+
+interface ActiveNotePreview {
+  noteId: NoteId;
+  rect: NoteRect;
+}
 
 interface PreviewFrame {
   activeNote: ActiveNotePreview | null;
@@ -67,13 +102,16 @@ function readBoardBounds(element: HTMLElement): BoardBounds {
 
 function readTrashRect(
   trashElement: HTMLElement | null,
-  boardBounds: BoardBounds,
+  boundries: BoardBounds,
 ): NoteRect {
+  // HACK: if the trash ref isn't mounted yet, hand back an empty rect. a
+  // zero-size rect can't contain any point (pointInside is strict), so the hit
+  // test just reads as "not over the trash". bit gross but it works.
   if (trashElement === null) return { x: 0, y: 0, width: 0, height: 0 };
   const rect = trashElement.getBoundingClientRect();
-  const topLeft = clientPointToBoardPoint(
+  const topLeft = toBoardPoint(
     { clientX: rect.left, clientY: rect.top },
-    boardBounds,
+    boundries,
   );
   return { x: topLeft.x, y: topLeft.y, width: rect.width, height: rect.height };
 }
@@ -143,13 +181,11 @@ export function useBoardGestures(params: BoardGesturesParams) {
           gesture.latestPointer,
           gesture.boardBounds,
         );
+        // console.log('move preview', rect, gesture.latestPointer);
         setPreview({
           activeNote: { noteId: gesture.noteId, rect },
           creation: null,
-          trashActive: isPointStrictlyInsideRectangle(
-            gesture.latestPointer,
-            gesture.trashRect,
-          ),
+          trashActive: pointInside(gesture.latestPointer, gesture.trashRect),
         });
         return;
       }
@@ -181,13 +217,13 @@ export function useBoardGestures(params: BoardGesturesParams) {
       if (gesture.type === 'idle') return;
       if (gesture.pointerId !== pointerId) return;
 
-      // Final geometry comes from the release event, not the preview, which can be a frame behind.
-      const releaseBoardPoint = clientPointToBoardPoint(
-        releasePoint,
-        gesture.boardBounds,
-      );
+      // use the release coords here, not the last preview frame - rAF means the
+      // preview can be a frame behind and we don't want to commit a stale rect.
+      const releaseBoardPoint = toBoardPoint(releasePoint, gesture.boardBounds);
       const active = gesture;
-      // Going idle before releasing capture makes the resulting lostpointercapture a no-op.
+      // go idle *before* we release capture, so the lostpointercapture that
+      // fires next is a no-op. otherwise it would try to cancel the the gesture
+      // we just committed.
       gestureRef.current = { type: 'idle' };
       cancelPendingFrame();
 
@@ -207,7 +243,7 @@ export function useBoardGestures(params: BoardGesturesParams) {
           break;
         }
         case 'moving': {
-          if (isPointStrictlyInsideRectangle(releaseBoardPoint, active.trashRect)) {
+          if (pointInside(releaseBoardPoint, active.trashRect)) {
             paramsRef.current.onRemoveNote(active.noteId);
             break;
           }
@@ -238,28 +274,25 @@ export function useBoardGestures(params: BoardGesturesParams) {
     [],
   );
 
-  const cancelActiveGesture = useCallback(
-    (reason: CancelReason) => {
-      const gesture = gestureRef.current;
-      const capturedPointerId =
-        gesture.type === 'idle' ? null : gesture.pointerId;
-      gestureRef.current = { type: 'idle' };
-      cancelPendingFrame();
+  const cancelActiveGesture = useCallback((reason: CancelReason) => {
+    const gesture = gestureRef.current;
+    const capturedPointerId =
+      gesture.type === 'idle' ? null : gesture.pointerId;
+    gestureRef.current = { type: 'idle' };
+    cancelPendingFrame();
 
-      if (reason === 'unmount') {
-        captureTargetRef.current = null;
-        return;
-      }
+    if (reason === 'unmount') {
+      captureTargetRef.current = null;
+      return;
+    }
 
-      clearPreviewState();
-      if (capturedPointerId !== null) {
-        releaseCaptureIfHeld(capturedPointerId);
-      } else {
-        captureTargetRef.current = null;
-      }
-    },
-    [],
-  );
+    clearPreviewState();
+    if (capturedPointerId !== null) {
+      releaseCaptureIfHeld(capturedPointerId);
+    } else {
+      captureTargetRef.current = null;
+    }
+  }, []);
 
   function beginNoteGesture(
     noteId: NoteId,
@@ -270,6 +303,9 @@ export function useBoardGestures(params: BoardGesturesParams) {
       boardBounds: BoardBounds;
     }) => Gesture,
   ) {
+    // TODO: only handling mouse / primary pointer right now. haven't tested pen
+    // or touch yet, and i think pointer capture behaves a little differently
+    // there. revisit if we ever care about tablets.
     if (!isPrimaryLeftButton(event)) return;
     if (gestureRef.current.type !== 'idle') return;
     const boardSurface = paramsRef.current.boardSurfaceRef.current;
@@ -280,9 +316,10 @@ export function useBoardGestures(params: BoardGesturesParams) {
     event.stopPropagation();
     paramsRef.current.onInteractionStart(noteId);
 
-    // Measured once here: the board cannot move mid-gesture, and layout reads per move would thrash.
+    // grab the board rect once, up front. it can't move mid-gesture, and
+    // reading layout on every pointermove would thrash.
     const boardBounds = readBoardBounds(boardSurface);
-    const pointerOrigin = clientPointToBoardPoint(
+    const pointerOrigin = toBoardPoint(
       { clientX: event.clientX, clientY: event.clientY },
       boardBounds,
     );
@@ -348,7 +385,7 @@ export function useBoardGestures(params: BoardGesturesParams) {
       if (boardSurface === null) return;
 
       const boardBounds = readBoardBounds(boardSurface);
-      const pointerOrigin = clientPointToBoardPoint(
+      const pointerOrigin = toBoardPoint(
         { clientX: event.clientX, clientY: event.clientY },
         boardBounds,
       );
@@ -356,7 +393,7 @@ export function useBoardGestures(params: BoardGesturesParams) {
         paramsRef.current.trashRef.current,
         boardBounds,
       );
-      if (isPointStrictlyInsideRectangle(pointerOrigin, trashRect)) return;
+      if (pointInside(pointerOrigin, trashRect)) return;
       gestureRef.current = {
         type: 'creating',
         pointerId: event.pointerId,
@@ -376,8 +413,9 @@ export function useBoardGestures(params: BoardGesturesParams) {
       const gesture = gestureRef.current;
       if (gesture.type === 'idle') return;
       if (event.pointerId !== gesture.pointerId) return;
-      // Raw positions live in the ref so a fast pointer stream costs one React update per frame.
-      gesture.latestPointer = clientPointToBoardPoint(
+      // stash the raw point on the ref and let rAF actually render it. keeps a
+      // fast pointer stream to ~one react update per frame instead of per event.
+      gesture.latestPointer = toBoardPoint(
         { clientX: event.clientX, clientY: event.clientY },
         gesture.boardBounds,
       );
@@ -387,19 +425,19 @@ export function useBoardGestures(params: BoardGesturesParams) {
   );
 
   const onBoardPointerUp = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      commitActiveGesture(event.pointerId, {
-        clientX: event.clientX,
-        clientY: event.clientY,
+    (e: PointerEvent<HTMLDivElement>) => {
+      commitActiveGesture(e.pointerId, {
+        clientX: e.clientX,
+        clientY: e.clientY,
       });
     },
     [commitActiveGesture],
   );
 
   const onBoardPointerCancel = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
+    (e: PointerEvent<HTMLDivElement>) => {
       const gesture = gestureRef.current;
-      if (gesture.type === 'idle' || gesture.pointerId !== event.pointerId) {
+      if (gesture.type === 'idle' || gesture.pointerId !== e.pointerId) {
         return;
       }
       cancelActiveGesture('cancel');

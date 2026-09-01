@@ -28,6 +28,7 @@ export interface Note {
   id: NoteId;
   rect: NoteRect;
   text: string;
+  // color?: string; // maybe let people pick a colour per note one day
 }
 
 export interface NotesState {
@@ -37,43 +38,7 @@ export interface NotesState {
 export type BoardPhase = 'measuring' | 'ready';
 export type BoardTool = 'select' | 'create';
 
-export type Gesture =
-  | { type: 'idle' }
-  | {
-      type: 'creating';
-      pointerId: number;
-      pointerOrigin: BoardPoint;
-      latestPointer: BoardPoint;
-      boardBounds: BoardBounds;
-    }
-  | {
-      type: 'moving';
-      pointerId: number;
-      noteId: NoteId;
-      pointerOrigin: BoardPoint;
-      latestPointer: BoardPoint;
-      initialRect: NoteRect;
-      boardBounds: BoardBounds;
-      trashRect: NoteRect;
-    }
-  | {
-      type: 'resizing';
-      pointerId: number;
-      noteId: NoteId;
-      pointerOrigin: BoardPoint;
-      latestPointer: BoardPoint;
-      initialRect: NoteRect;
-      boardBounds: BoardBounds;
-    };
-
-export interface ActiveNotePreview {
-  noteId: NoteId;
-  rect: NoteRect;
-}
-
 export const MIN_NOTE_WIDTH = 160;
 export const MIN_NOTE_HEIGHT = 120;
-export const MIN_CREATE_DRAG_DISTANCE = 6;
 export const MAX_NOTE_TEXT_LENGTH = 5000;
 export const STORAGE_KEY = 'sticky-notes-ts:document';
-export const STORAGE_DEBOUNCE_MS = 300;

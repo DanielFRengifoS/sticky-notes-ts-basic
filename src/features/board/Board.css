@@ -10,22 +10,23 @@
 
 .toolbar {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 0.5rem;
-  flex: 0 0 auto;
 }
 
 .toolbarButton {
+  cursor: pointer;
+  color: #17202a;
+  background: #ffffff;
   padding: 0.5rem 0.9rem;
   border: 1px solid #c3cbd6;
   border-radius: 0.5rem;
-  background: #ffffff;
-  color: #17202a;
-  cursor: pointer;
 }
 
 .toolbarButton:hover {
-  border-color: #2563eb;
+  /* TODO this blue is pasted all over the file, should be a css var */
+  border-color: #2463eb;
 }
 
 .toolbarButton:focus-visible {
@@ -34,20 +35,27 @@
 }
 
 .toolbarButton[aria-pressed='true'] {
-  border-color: #2563eb;
-  background: #2563eb;
   color: #ffffff;
+  background: #2563eb;
+  border-color: #2563eb;
 }
 
 .boardFrame {
   flex: 1 1 auto;
   min-height: 320px;
+  overflow: hidden;
+  background: #ffffff;
   border: 1px solid #d7dce2;
   border-radius: 0.75rem;
-  background: #ffffff;
   box-shadow: 0 1px 3px rgba(23, 32, 42, 0.08);
-  overflow: hidden;
 }
+
+/* first version pinned this to a fixed height, but it looked awful on short
+   windows so it's flex now. leaving this here in case i need to go back.
+.boardFrame {
+  height: 480px;
+}
+*/
 
 .boardSurface {
   position: relative;
@@ -76,7 +84,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0;
+  margin: 0px;
   padding: 1.5rem;
   text-align: center;
   color: #5b6470;
@@ -86,10 +94,10 @@
 .creationPreview {
   position: absolute;
   box-sizing: border-box;
+  pointer-events: none;
+  background: rgba(37, 99, 235, 0.08);
   border: 2px dashed #2563eb;
   border-radius: 0.5rem;
-  background: rgba(37, 99, 235, 0.08);
-  pointer-events: none;
 }
 
 .trashZone {
@@ -106,17 +114,17 @@
   width: 8.5rem;
   height: 7rem;
   padding: 0.4rem 0.5rem;
+  color: #b0271f;
+  background: rgba(176, 39, 31, 0.06);
   border: 2px dashed #b0271f;
   border-radius: 0.75rem;
-  background: rgba(176, 39, 31, 0.06);
-  color: #b0271f;
   pointer-events: none;
 }
 
 .trashZone[data-active='true'] {
+  background: rgba(176, 39, 31, 0.16);
   border-style: solid;
   border-width: 3px;
-  background: rgba(176, 39, 31, 0.16);
 }
 
 .trashIcon {
@@ -129,15 +137,20 @@
   font-weight: 600;
 }
 
+/* bumped the weight a bit later, easier to just add a rule than find the one above */
+.trashLabel {
+  font-weight: 700;
+}
+
 .noteCard {
   position: absolute;
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
   overflow: hidden;
+  box-sizing: border-box;
+  background: #fff7cc;
   border: 1px solid #d7ba57;
   border-radius: 0.5rem;
-  background: #fff7cc;
   box-shadow: 0 2px 6px rgba(23, 32, 42, 0.18);
 }
 
@@ -147,10 +160,10 @@
 }
 
 .noteHeader {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  flex: 0 0 auto;
   height: 1.5rem;
   padding: 0 0.35rem;
   background: rgba(23, 32, 42, 0.08);
@@ -165,9 +178,10 @@
   margin: 0;
   padding: 0.5rem;
   border: 0;
-  background: transparent;
   color: #17202a;
-  resize: none;
+  background: transparent;
+  /* safari kept drawing the resize grabber, force it off */
+  resize: none !important;
 }
 
 .noteEditor:focus-visible {

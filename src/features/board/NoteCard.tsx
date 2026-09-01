@@ -3,13 +3,19 @@ import type { Note, NoteId, NoteRect } from '../../domain/types';
 
 interface NoteCardProps {
   note: Note;
-  previewRect?: NoteRect | undefined;
+  previewRect?: NoteRect;
   selected: boolean;
   shouldFocus: boolean;
   onTextChange: (noteId: NoteId, text: string) => void;
   onNoteInteraction: (noteId: NoteId) => void;
-  onHeaderPointerDown: (noteId: NoteId, event: PointerEvent<HTMLDivElement>) => void;
-  onResizePointerDown: (noteId: NoteId, event: PointerEvent<HTMLDivElement>) => void;
+  onHeaderPointerDown: (
+    noteId: NoteId,
+    event: PointerEvent<HTMLDivElement>,
+  ) => void;
+  onResizePointerDown: (
+    noteId: NoteId,
+    event: PointerEvent<HTMLDivElement>,
+  ) => void;
   onFocused: (noteId: NoteId) => void;
 }
 
@@ -38,7 +44,12 @@ function NoteCardComponent({
     <div
       className="noteCard"
       data-selected={selected}
-      style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
+      style={{
+        left: rect.x,
+        top: rect.y,
+        width: rect.width,
+        height: rect.height,
+      }}
     >
       <div
         className="noteHeader"

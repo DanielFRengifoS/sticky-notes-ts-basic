@@ -1,40 +1,39 @@
 # Sticky Notes
 
-A desktop sticky-notes board built with React and TypeScript. You create notes by dragging on the board, move and resize them, edit their text, and delete them by releasing the pointer over a trash zone.
+A little desktop sticky-notes board built with React and TypeScript. You drag on the board to make a note, then move it, resize it, edit its text, and delete it by dropping it on the trash zone.
 
-Pointer interactions are written directly against the Pointer Events API instead of a drag-and-drop library.
+I wrote the pointer handling straight against the Pointer Events API instead of reaching for a drag-and-drop library - the gesture handling felt like the actual point of the exercise, so hiding it behind a lib seemed like cheating.
 
-![The board with several notes and the trash zone](docs/screenshot.png)
+![The board with a few notes and the trash zone](docs/screenshot.png)
 
 ## Features
 
-- Create a note by dragging out its position and size on the board.
-- Move a note by dragging its header.
-- Resize a note from its bottom-right handle.
-- Delete a note by releasing the pointer over the trash zone.
-- Edit note text in a controlled `<textarea>`.
-- Bring a note to the front by interacting with it.
-- Save and restore notes through versioned local storage.
-- Cancel an active gesture or leave create mode with `Escape`.
+- Drag out a note's position and size on the board.
+- Move a note by its header.
+- Resize from the bottom-right handle.
+- Delete by releasing the pointer over the trash zone.
+- Edit text in a controlled `<textarea>`.
+- Interacting with a note selects it and brings it to the front.
+- Notes are saved to local storage and restored on reload.
+- `Escape` cancels the active gesture or leaves create mode.
 
 ## Usage
 
-1. Click **New note**. The button changes to **Drag on the board to create** while create mode is active.
-2. Drag on an empty part of the board to create a note. Very short drags are ignored so a stray click does not leave a note behind.
-3. Drag a note by its header to move it.
-4. Drag the bottom-right handle to resize it.
-5. To delete a note, move it and release the pointer while the cursor is over the trash zone. Deletion follows the pointer, not note overlap.
-6. Click inside a note to edit its text. Interacting with a note also selects it and brings it to the front.
-7. Press `Escape` to cancel the active gesture or leave create mode.
+1. Click **New note**. The button flips to **Drag on the board to create** while create mode is on.
+2. Drag on an empty part of the board to make a note. Really short drags are ignored so a stray click doesn't leave a note behind.
+3. Drag the header to move, drag the bottom-right handle to resize.
+4. To delete, move a note and let go while the cursor is over the trash. Deletion follows the pointer, not note overlap.
+5. Click into a note to edit. That also selects it and brings it forward.
+6. `Escape` to bail out of a gesture or create mode.
 
-Notes are saved after each committed change and restored when the page reloads.
+Notes save after each committed change and come back on reload.
 
 ## Requirements
 
 - Node.js `>= 20.19`
 - npm
 
-Developed with Node.js `20.20.2` and npm `10.8.2`.
+Built with Node.js `20.20.2` and npm `10.8.2`.
 
 ## Commands
 
@@ -46,38 +45,32 @@ npm run build
 npm run preview
 ```
 
-`npm run check` runs the type checker, ESLint, the unit tests, and a production build.
+`npm run check` runs the type checker, ESLint, the unit tests, and a production build. There's also `npm run format` (prettier) but I mostly let the editor do that on save.
 
-`npm run preview` serves the built bundle from `dist/`.
+## How it's put together
 
-## Architecture
+A few notes to future me:
 
-Committed note data is kept apart from temporary interaction state. Notes live in an ordered array behind a small pure reducer in `src/domain/notesReducer.ts`; array order is stacking order, so the last note renders in front. The reducer returns the same state object for no-op actions and keeps the references of untouched notes, which lets memoized note components skip re-rendering. A single element, `boardSurface`, is the only coordinate system in play: pointer conversion, geometry, previews, trash hit-testing, CSS positioning, and persisted rectangles all measure against it.
+- Committed note data is kept seperate from the temporary gesture state. Notes are an ordered array behind a small pure reducer (`src/domain/notesReducer.ts`); array order _is_ the stacking order, so the last note in the array paints on top. The reducer hands back the same state object for no-op actions, which lets the memoised note components skip re-rendering.
+- There's a single coordinate system: the `boardSurface` element. Pointer math, previews, trash hit-testing, CSS positioning and the persisted rectangles are all measured against that one element, so there's nothing to convert between.
+- Gesture handling lives in `src/features/board/useBoardGestures.ts` and uses pointer capture. The raw pointer position sits on a ref and `requestAnimationFrame` holds the preview to one update per frame. Final geometry comes from the `pointerup` coords, not the last rendered frame, because occassionally a frame is a beat behind and you don't want to commit that.
+- Persistence is in `src/infrastructure/notesStorage.ts`. On mount the board measures it's surface, reads and validates the versioned localStorage payload, clamps the saved rects into the current board, and only then starts saving. Writes are debounced ~250ms. Stored values arrive as `unknown` and get validated before use.
 
-Pointer handling lives in `src/features/board/useBoardGestures.ts` and uses pointer capture. The raw pointer position is kept in a ref, and `requestAnimationFrame` holds rendered previews to one update per frame; only the active note gets a changing preview. Final geometry is computed from the `pointerup` coordinates rather than the last rendered preview, so a stale frame cannot be committed. Completion and cancellation are separate paths: `Escape`, `pointercancel`, and lost pointer capture drop the gesture without committing anything.
+Notes have a minimum size (roughly 150 x 120) and can't be dragged off the board - everything is clamped when it commits.
 
-Persistence sits in `src/infrastructure/notesStorage.ts`. The board measures its surface, reads and validates the versioned local-storage payload, clamps the restored geometry into that surface, and only then becomes ready. Saving stays off until it is, so the initial empty state cannot overwrite stored notes. Writes are debounced by 300 ms while React state stays immediate. Stored values arrive as `unknown` and are validated before use.
+## Stuff I'd fix with more time
 
-## Trade-offs
-
-- **No drag-and-drop library:** the gesture lifecycle, pointer capture, cancellation, and geometry all stay in plain sight.
-- **One coordinate surface:** every rectangle is relative to a single borderless, padding-free element, so there is nothing to convert between.
-- **Array-based stacking:** array order is enough z-order for this number of notes and keeps persistence simple.
-- **Clamping on commit:** restored notes are clamped during hydration and edited notes when their geometry is committed, instead of rewriting and saving every note while the window resizes.
-- **No unload flush:** the debounced write is the only save path; there is no separate `pagehide` handler.
-- **Unit tests only:** geometry, reducer behavior, persistence validation, and the reference-preservation cases are covered; the rendered UI is not.
+- No tests around the gesture hook itself. The pure stuff (geometry, reducer, storage validation) is covered, but the pointer flow isn't, because jsdom doesn't do pointer capture. I'd move that to Playwright.
+- Notes don't reflow when you resize the window. They just get clamped the next time you touch them.
+- No undo/redo.
+- No colours, no server sync, no keyboard move/resize.
+- Touch and pen behaviour is untested - I only really drove it with a mouse in Chrome.
+- The blue accent is copy-pasted all through the CSS instead of being a variable.
 
 ## Browser support
 
-Developed and used in Chrome on macOS. Other current desktop browsers are expected to work but were not specifically verified.
-
-## Known limitations
-
-- Desktop only; touch and mobile behavior were not tested.
-- Notes are not repositioned while the window is resized. They are clamped the next time their geometry is committed.
-- There is no undo or redo.
-- Note colors, server persistence, and keyboard-based movement or resizing are not implemented.
+Developed and used in Chrome on macOS. Other current desktop browsers should be fine but I didn't check them properly.
 
 ## Time spent
 
-Around 2 to 2.5 hours.
+Somewhere around 4-5 hours, give or take. A good chunk of that went into the resize/clamp maths and into StrictMode double-firing the hydrate effect and stomping the saved notes until I gated the save behind a ready phase.

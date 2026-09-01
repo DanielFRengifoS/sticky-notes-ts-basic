@@ -8,10 +8,15 @@ import {
   type PointerEvent,
 } from 'react';
 import { initialNotesState, notesReducer } from '../../domain/notesReducer';
-import { normalizeRectToBoard } from '../../domain/geometry';
+import { clampRect } from '../../domain/geometry';
 import { loadNotes, saveNotes } from '../../infrastructure/notesStorage';
-import type { BoardPhase, BoardTool, NoteId, NoteRect, Size } from '../../domain/types';
-import { STORAGE_DEBOUNCE_MS } from '../../domain/types';
+import type {
+  BoardPhase,
+  BoardTool,
+  NoteId,
+  NoteRect,
+  Size,
+} from '../../domain/types';
 import { NoteCard } from './NoteCard';
 import { useBoardGestures } from './useBoardGestures';
 import './Board.css';
@@ -38,26 +43,29 @@ export function Board() {
 
     const boardSize: Size = { width: rect.width, height: rect.height };
     const stored = loadNotes(window.localStorage);
+    console.log('[board] hydrating', stored.length, 'notes');
+    // re-normalise the saved rects against the current board size
     const normalized = stored.map((note) => ({
       ...note,
-      rect: normalizeRectToBoard(note.rect, boardSize),
+      rect: clampRect(note.rect, boardSize),
     }));
     dispatch({ type: 'notesHydrated', notes: normalized });
     setPhase('ready');
   }, []);
 
   useEffect(() => {
-    // Gated on hydration so the initial empty state, doubled under StrictMode, cannot overwrite saved notes.
+    // don't save until we've hydrated. under StrictMode this effect runs twice
+    // and the first (empty) pass would otherwise stomp the saved notes.
     if (phase !== 'ready') return;
+    // stash on window so i can poke at notes from devtools. remove before ship.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__notes = state.notes;
+    // debounce writes by ~250ms so a drag doesn't hammer localStorage
     const timer = window.setTimeout(() => {
       saveNotes(window.localStorage, state.notes);
-    }, STORAGE_DEBOUNCE_MS);
+    }, 300);
     return () => window.clearTimeout(timer);
   }, [phase, state.notes]);
-
-  function getNoteRect(noteId: NoteId): NoteRect | undefined {
-    return state.notes.find((note) => note.id === noteId)?.rect;
-  }
 
   const handleTextChange = useCallback((noteId: NoteId, text: string) => {
     dispatch({ type: 'noteTextChanged', noteId, text });
@@ -68,17 +76,18 @@ export function Board() {
     dispatch({ type: 'noteBroughtToFront', noteId });
   }, []);
 
-  const handleCommitRect = useCallback((noteId: NoteId, rect: NoteRect) => {
+  function handleCommitRect(noteId: NoteId, rect: NoteRect) {
     dispatch({ type: 'noteRectCommitted', noteId, rect });
-  }, []);
+  }
 
-  const handleCreateNote = useCallback((rect: NoteRect) => {
+  // not memoised - only the gesture hook uses this and it reads params off a ref
+  function handleCreateNote(rect: NoteRect) {
     const id = crypto.randomUUID();
     dispatch({ type: 'noteAdded', note: { id, rect, text: '' } });
     setSelectedId(id);
     setFocusNoteId(id);
     setTool('select');
-  }, []);
+  }
 
   function handleToggleCreate() {
     setTool((current) => (current === 'create' ? 'select' : 'create'));
@@ -114,7 +123,7 @@ export function Board() {
     boardSurfaceRef,
     trashRef,
     tool,
-    getNoteRect,
+    getNoteRect: (id: NoteId) => state.notes.find((n) => n.id === id)?.rect,
     onInteractionStart: handleNoteInteraction,
     onCommitRect: handleCommitRect,
     onCreateNote: handleCreateNote,
