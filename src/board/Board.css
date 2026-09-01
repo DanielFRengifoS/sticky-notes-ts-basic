@@ -25,18 +25,18 @@
 }
 
 .toolbarButton:hover {
-  border-color: #2463eb;
+  border-color: var(--accent);
 }
 
 .toolbarButton:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 .toolbarButton[aria-pressed='true'] {
   color: #ffffff;
-  background: #2563eb;
-  border-color: #2563eb;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .boardFrame {
@@ -76,7 +76,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0px;
+  margin: 0;
   padding: 1.5rem;
   text-align: center;
   color: #5b6470;
@@ -88,7 +88,7 @@
   box-sizing: border-box;
   pointer-events: none;
   background: rgba(37, 99, 235, 0.08);
-  border: 2px dashed #2563eb;
+  border: 2px dashed var(--accent);
   border-radius: 0.5rem;
 }
 
@@ -106,9 +106,9 @@
   width: 8.5rem;
   height: 7rem;
   padding: 0.4rem 0.5rem;
-  color: #b0271f;
+  color: var(--trash);
   background: rgba(176, 39, 31, 0.06);
-  border: 2px dashed #b0271f;
+  border: 2px dashed var(--trash);
   border-radius: 0.75rem;
   pointer-events: none;
 }
@@ -126,10 +126,6 @@
 
 .trashLabel {
   font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.trashLabel {
   font-weight: 700;
 }
 
@@ -146,7 +142,7 @@
 }
 
 .noteCard[data-selected='true'] {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -171,11 +167,11 @@
   border: 0;
   color: #17202a;
   background: transparent;
-  resize: none !important;
+  resize: none;
 }
 
 .noteEditor:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 

@@ -7,19 +7,14 @@ import {
   useState,
   type PointerEvent,
 } from 'react';
-import { initialNotesState, notesReducer } from '../../domain/notesReducer';
-import { clampRect } from '../../domain/geometry';
-import { loadNotes, saveNotes } from '../../infrastructure/notesStorage';
-import type {
-  BoardPhase,
-  BoardTool,
-  NoteId,
-  NoteRect,
-  Size,
-} from '../../domain/types';
+import { initialNotesState, notesReducer, type NoteId } from './notes';
+import { clampRect, type NoteRect, type Size } from './geometry';
+import { loadNotes, saveNotes } from './storage';
 import { NoteCard } from './NoteCard';
-import { useBoardGestures } from './useBoardGestures';
+import { useBoardGestures, type BoardTool } from './useBoardGestures';
 import './Board.css';
+
+type BoardPhase = 'measuring' | 'ready';
 
 export function Board() {
   const [state, dispatch] = useReducer(notesReducer, initialNotesState);
@@ -31,6 +26,8 @@ export function Board() {
   const boardSurfaceRef = useRef<HTMLDivElement>(null);
   const trashRef = useRef<HTMLDivElement>(null);
 
+  // StrictMode runs the hydrate effect twice; without this gate the second pass reloads
+  // storage and throws away edits made after the first
   const hydratedRef = useRef(false);
 
   useLayoutEffect(() => {
@@ -43,7 +40,6 @@ export function Board() {
 
     const boardSize: Size = { width: rect.width, height: rect.height };
     const stored = loadNotes(window.localStorage);
-    console.log('[board] hydrating', stored.length, 'notes');
     const normalized = stored.map((note) => ({
       ...note,
       rect: clampRect(note.rect, boardSize),
@@ -54,13 +50,14 @@ export function Board() {
 
   useEffect(() => {
     if (phase !== 'ready') return;
-    (window as unknown as Record<string, unknown>).__notes = state.notes;
     const timer = window.setTimeout(() => {
       saveNotes(window.localStorage, state.notes);
     }, 300);
     return () => window.clearTimeout(timer);
   }, [phase, state.notes]);
 
+  // handlers reaching NoteCard are memoized because it is memo'd; the ones the gesture
+  // hook takes are plain, since it reads its params through a ref
   const handleTextChange = useCallback((noteId: NoteId, text: string) => {
     dispatch({ type: 'noteTextChanged', noteId, text });
   }, []);
@@ -90,11 +87,11 @@ export function Board() {
     setTool('select');
   }
 
-  const handleRemoveNote = useCallback((noteId: NoteId) => {
+  function handleRemoveNote(noteId: NoteId) {
     dispatch({ type: 'noteRemoved', noteId });
     setSelectedId((current) => (current === noteId ? null : current));
     setFocusNoteId((current) => (current === noteId ? null : current));
-  }, []);
+  }
 
   const handleNoteFocused = useCallback((noteId: NoteId) => {
     setFocusNoteId((prev) => (prev === noteId ? null : prev));
@@ -124,21 +121,18 @@ export function Board() {
     onDisarmCreateTool: handleDisarmCreateTool,
   });
 
-  const handleSurfacePointerDown = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      if (phase !== 'ready') return;
-      onBoardPointerDown(event);
-      if (
-        tool === 'select' &&
-        event.target === event.currentTarget &&
-        event.isPrimary &&
-        event.button === 0
-      ) {
-        setSelectedId(null);
-      }
-    },
-    [onBoardPointerDown, phase, tool],
-  );
+  function handleSurfacePointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (phase !== 'ready') return;
+    onBoardPointerDown(event);
+    if (
+      tool === 'select' &&
+      event.target === event.currentTarget &&
+      event.isPrimary &&
+      event.button === 0
+    ) {
+      setSelectedId(null);
+    }
+  }
 
   return (
     <div className="board">
@@ -180,7 +174,7 @@ export function Board() {
                   previewRect={
                     activeNotePreview?.noteId === note.id
                       ? activeNotePreview.rect
-                      : undefined
+                      : null
                   }
                   selected={selectedId === note.id}
                   shouldFocus={focusNoteId === note.id}

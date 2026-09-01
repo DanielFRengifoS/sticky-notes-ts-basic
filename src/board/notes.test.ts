@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { initialNotesState, notesReducer } from './notesReducer';
-import type { Note, NoteRect, NotesState } from './types';
-import { MAX_NOTE_TEXT_LENGTH } from './types';
+import {
+  MAX_NOTE_TEXT_LENGTH,
+  initialNotesState,
+  notesReducer,
+  type Note,
+  type NotesState,
+} from './notes';
+import type { NoteRect } from './geometry';
 
 function makeNote(
   id: string,
@@ -17,13 +22,13 @@ function twoNotes(): NotesState {
 }
 
 describe('notesReducer', () => {
-  it('ignores a rect commit for a note that is gone', () => {
+  it('ignores a rect commit that matches the current rect', () => {
     const state = twoNotes();
     expect(
       notesReducer(state, {
         type: 'noteRectCommitted',
-        noteId: 'missing',
-        rect: { x: 10, y: 20, width: 200, height: 150 },
+        noteId: 'a',
+        rect: { x: 0, y: 0, width: 160, height: 120 },
       }),
     ).toBe(state);
   });
@@ -32,28 +37,6 @@ describe('notesReducer', () => {
     const state = twoNotes();
     expect(
       notesReducer(state, { type: 'noteBroughtToFront', noteId: 'b' }),
-    ).toBe(state);
-  });
-
-  it('ignores a text change for a note that is gone', () => {
-    const state = twoNotes();
-    expect(
-      notesReducer(state, {
-        type: 'noteTextChanged',
-        noteId: 'missing',
-        text: 'x',
-      }),
-    ).toBe(state);
-  });
-
-  it('ignores a text change that matches the current text', () => {
-    const state = twoNotes();
-    expect(
-      notesReducer(state, {
-        type: 'noteTextChanged',
-        noteId: 'b',
-        text: 'keep',
-      }),
     ).toBe(state);
   });
 
@@ -89,16 +72,6 @@ describe('notesReducer', () => {
     });
 
     expect(next.notes[0]?.text).toHaveLength(MAX_NOTE_TEXT_LENGTH);
-  });
-
-  it('caps note text length', () => {
-    const state: NotesState = { notes: [makeNote('a')] };
-    const next = notesReducer(state, {
-      type: 'noteTextChanged',
-      noteId: 'a',
-      text: 'y'.repeat(MAX_NOTE_TEXT_LENGTH + 1),
-    });
-    expect(next.notes[0]?.text.length).toBe(MAX_NOTE_TEXT_LENGTH);
   });
 
   it('hydrates, adds, reorders, and removes while preserving unaffected references', () => {

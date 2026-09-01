@@ -1,12 +1,29 @@
-import type {
-  BoardBounds,
-  BoardPoint,
-  ClientPoint,
-  NoteRect,
-  Size,
-} from './types';
-import { MIN_NOTE_HEIGHT, MIN_NOTE_WIDTH } from './types';
+export interface ClientPoint {
+  clientX: number;
+  clientY: number;
+}
 
+export interface BoardPoint {
+  x: number;
+  y: number;
+}
+
+export interface Size {
+  width: number;
+  height: number;
+}
+
+export interface NoteRect extends BoardPoint, Size {}
+
+export interface BoardBounds {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+const MIN_NOTE_WIDTH = 160;
+const MIN_NOTE_HEIGHT = 120;
 const MIN_CREATE_DRAG_DISTANCE = 6;
 
 function clamp(value: number, min: number, max: number): number {
@@ -92,6 +109,8 @@ export function resizeRect(
 ): NoteRect {
   const { width: availableWidth, height: availableHeight } =
     availableSize(boardSize);
+  // x and y have to be clamped before the maxima are derived from them, otherwise a
+  // note whose stored origin sits outside the board can be resized past the edge
   const x = clamp(Math.round(initialRect.x), 0, availableWidth);
   const y = clamp(Math.round(initialRect.y), 0, availableHeight);
   const maxWidth = availableWidth - x;
@@ -109,15 +128,8 @@ export function resizeRect(
   return { x, y, width, height };
 }
 
+// strict on all four sides on purpose: a pointer resting exactly on the trash border
+// should not delete the note it is carrying
 export function pointInside(p: BoardPoint, r: NoteRect): boolean {
   return p.x > r.x && p.x < r.x + r.width && p.y > r.y && p.y < r.y + r.height;
-}
-
-export function rectsOverlap(a: NoteRect, b: NoteRect): boolean {
-  return (
-    a.x < b.x + b.width &&
-    a.x + a.width > b.x &&
-    a.y < b.y + b.height &&
-    a.y + a.height > b.y
-  );
 }

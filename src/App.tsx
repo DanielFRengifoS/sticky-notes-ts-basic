@@ -1,4 +1,4 @@
-import { Board } from './features/board/Board';
+import { Board } from './board/Board';
 import './App.css';
 
 export function App() {

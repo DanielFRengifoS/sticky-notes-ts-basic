@@ -1,4 +1,7 @@
 :root {
+  --accent: #2563eb;
+  --trash: #b0271f;
+
   font-family:
     Inter,
     ui-sans-serif,

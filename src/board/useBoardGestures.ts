@@ -13,15 +13,14 @@ import {
   pointInside,
   resizeRect,
   toBoardPoint,
-} from '../../domain/geometry';
-import type {
-  BoardBounds,
-  BoardPoint,
-  BoardTool,
-  ClientPoint,
-  NoteId,
-  NoteRect,
-} from '../../domain/types';
+  type BoardBounds,
+  type BoardPoint,
+  type ClientPoint,
+  type NoteRect,
+} from './geometry';
+import type { NoteId } from './notes';
+
+export type BoardTool = 'select' | 'create';
 
 type CancelReason = 'cancel' | 'unmount';
 
@@ -99,20 +98,23 @@ function readBoardBounds(element: HTMLElement): BoardBounds {
 
 function readTrashRect(
   trashElement: HTMLElement | null,
-  boundries: BoardBounds,
+  bounds: BoardBounds,
 ): NoteRect {
   if (trashElement === null) return { x: 0, y: 0, width: 0, height: 0 };
   const rect = trashElement.getBoundingClientRect();
   const topLeft = toBoardPoint(
     { clientX: rect.left, clientY: rect.top },
-    boundries,
+    bounds,
   );
   return { x: topLeft.x, y: topLeft.y, width: rect.width, height: rect.height };
 }
 
 export function useBoardGestures(params: BoardGesturesParams) {
+  // handlers read params through this ref so their identity stays stable across renders
   const paramsRef = useRef(params);
-  paramsRef.current = params;
+  useEffect(() => {
+    paramsRef.current = params;
+  });
 
   const gestureRef = useRef<Gesture>({ type: 'idle' });
   const captureTargetRef = useRef<HTMLElement | null>(null);
@@ -210,6 +212,8 @@ export function useBoardGestures(params: BoardGesturesParams) {
       if (gesture.type === 'idle') return;
       if (gesture.pointerId !== pointerId) return;
 
+      // commit from the pointerup position, not gesture.latestPointer: the rAF-throttled
+      // preview can be a frame behind and we would persist the stale rect
       const releaseBoardPoint = toBoardPoint(releasePoint, gesture.boardBounds);
       const active = gesture;
       gestureRef.current = { type: 'idle' };
@@ -269,6 +273,8 @@ export function useBoardGestures(params: BoardGesturesParams) {
     gestureRef.current = { type: 'idle' };
     cancelPendingFrame();
 
+    // on unmount the captured element is already going away, so releasing capture and
+    // setting preview state are both wrong here
     if (reason === 'unmount') {
       captureTargetRef.current = null;
       return;

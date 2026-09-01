@@ -1,9 +1,10 @@
 import { memo, useLayoutEffect, useRef, type PointerEvent } from 'react';
-import type { Note, NoteId, NoteRect } from '../../domain/types';
+import type { NoteRect } from './geometry';
+import type { Note, NoteId } from './notes';
 
 interface NoteCardProps {
   note: Note;
-  previewRect?: NoteRect;
+  previewRect: NoteRect | null;
   selected: boolean;
   shouldFocus: boolean;
   onTextChange: (noteId: NoteId, text: string) => void;

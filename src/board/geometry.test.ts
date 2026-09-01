@@ -5,10 +5,9 @@ import {
   hasReachedCreateThreshold,
   moveRect,
   pointInside,
-  rectsOverlap,
   resizeRect,
+  type Size,
 } from './geometry';
-import type { Size } from './types';
 
 const board: Size = { width: 1000, height: 800 };
 
@@ -86,41 +85,32 @@ describe('geometry', () => {
     ).toEqual({ x: 0, y: 0, width: 160, height: 120 });
   });
 
-  it('resize + hit test edge cases', () => {
-    const initial = { x: 100, y: 100, width: 160, height: 120 };
+  it('refuses to resize a note below its minimum size', () => {
     expect(
-      resizeRect(initial, { x: 0, y: 0 }, { x: -50, y: -50 }, board),
-    ).toEqual({
-      x: 100,
-      y: 100,
-      width: 160,
-      height: 120,
-    });
-    expect(
-      resizeRect(initial, { x: 0, y: 0 }, { x: 10000, y: 10000 }, board),
-    ).toEqual({
-      x: 100,
-      y: 100,
-      width: 900,
-      height: 700,
-    });
+      resizeRect(
+        { x: 100, y: 100, width: 160, height: 120 },
+        { x: 0, y: 0 },
+        { x: -50, y: -50 },
+        board,
+      ),
+    ).toEqual({ x: 100, y: 100, width: 160, height: 120 });
+  });
 
+  it('stops a resize at the board edge', () => {
+    expect(
+      resizeRect(
+        { x: 100, y: 100, width: 160, height: 120 },
+        { x: 0, y: 0 },
+        { x: 10000, y: 10000 },
+        board,
+      ),
+    ).toEqual({ x: 100, y: 100, width: 900, height: 700 });
+  });
+
+  it('treats the trash edge as outside the trash', () => {
     const trash = { x: 100, y: 100, width: 100, height: 100 };
     expect(pointInside({ x: 100, y: 150 }, trash)).toBe(false);
     expect(pointInside({ x: 200, y: 150 }, trash)).toBe(false);
     expect(pointInside({ x: 150, y: 150 }, trash)).toBe(true);
-  });
-
-  it('rectsOverlap', () => {
-    const a = { x: 0, y: 0, width: 100, height: 100 };
-    expect(rectsOverlap(a, { x: 50, y: 50, width: 100, height: 100 })).toBe(
-      true,
-    );
-    expect(rectsOverlap(a, { x: 200, y: 0, width: 10, height: 10 })).toBe(
-      false,
-    );
-    expect(rectsOverlap(a, { x: 100, y: 0, width: 10, height: 10 })).toBe(
-      false,
-    );
   });
 });

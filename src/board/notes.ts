@@ -1,5 +1,18 @@
-import type { Note, NoteId, NoteRect, NotesState } from './types';
-import { MAX_NOTE_TEXT_LENGTH } from './types';
+import type { NoteRect } from './geometry';
+
+export type NoteId = string;
+
+export interface Note {
+  id: NoteId;
+  rect: NoteRect;
+  text: string;
+}
+
+export interface NotesState {
+  notes: Note[];
+}
+
+export const MAX_NOTE_TEXT_LENGTH = 5000;
 
 export type NotesAction =
   | { type: 'notesHydrated'; notes: Note[] }
@@ -30,8 +43,11 @@ export function notesReducer(
 
     case 'noteRectCommitted': {
       const target = state.notes.find((note) => note.id === action.noteId);
-      if (target === undefined) return state;
-      if (rectsEqual(target.rect, action.rect)) return state;
+      // cards are memoised on the note object, and pressing a note without dragging
+      // commits the rect it already has
+      if (target !== undefined && rectsEqual(target.rect, action.rect)) {
+        return state;
+      }
       return {
         notes: state.notes.map((note) =>
           note.id === action.noteId ? { ...note, rect: action.rect } : note,
@@ -40,24 +56,17 @@ export function notesReducer(
     }
 
     case 'noteTextChanged': {
-      const target = state.notes.find((note) => note.id === action.noteId);
-      if (target === undefined) return state;
-      const nextText =
-        action.text.length > MAX_NOTE_TEXT_LENGTH
-          ? action.text.slice(0, MAX_NOTE_TEXT_LENGTH)
-          : action.text;
-      if (target.text === nextText) return state;
+      const text = action.text.slice(0, MAX_NOTE_TEXT_LENGTH);
       return {
         notes: state.notes.map((note) =>
-          note.id === action.noteId ? { ...note, text: nextText } : note,
+          note.id === action.noteId ? { ...note, text } : note,
         ),
       };
     }
 
     case 'noteBroughtToFront': {
       const target = state.notes.find((note) => note.id === action.noteId);
-      if (target === undefined) return state;
-      if (state.notes.at(-1) === target) return state;
+      if (target === undefined || state.notes.at(-1) === target) return state;
       return {
         notes: [
           ...state.notes.filter((note) => note.id !== action.noteId),
@@ -66,10 +75,8 @@ export function notesReducer(
       };
     }
 
-    case 'noteRemoved': {
-      if (!state.notes.some((note) => note.id === action.noteId)) return state;
+    case 'noteRemoved':
       return { notes: state.notes.filter((note) => note.id !== action.noteId) };
-    }
 
     default:
       return state;
